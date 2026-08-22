@@ -1,4 +1,5 @@
 import { answerQuestion } from "./garbage-rules";
+import { encodeAudioBase64 } from "./audio";
 
 interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -73,7 +74,7 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
       return json({ error: "AUDIO_TOO_LARGE", message: "録音が長すぎます。短く話してください。" }, 413);
     }
 
-    const audio = Array.from(new Uint8Array(await value.arrayBuffer()));
+    const audio = encodeAudioBase64(await value.arrayBuffer());
     const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
       audio,
       language: "ja",
