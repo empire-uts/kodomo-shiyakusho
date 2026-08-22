@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Reject OpenAI Sites configuration
+        shell: bash
+        run: |
+          if [[ -e .openai/hosting.json ]]; then
+            echo "OpenAI Sites configuration must not be committed to this repository."
+            exit 1
+          fi
+
+      - name: Reject tracked credential files
+        shell: bash
+        run: |
+          blocked=false
+
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              .env|*/.env|.env.*|*/.env.*)
+                if [[ "$path" != ".env.example" && "$path" != */.env.example ]]; then
+                  echo "::error file=$path::Environment files must not be tracked."
+                  blocked=true
+                fi
+                ;;
+              .dev.vars|*/.dev.vars|.dev.vars.*|*/.dev.vars.*|.npmrc|*/.npmrc|.yarnrc|*/.yarnrc|*.pem|*.key|*.p12|*.pfx|*.jks|*.keystore|credentials*.json|*/credentials*.json|service-account*.json|*/service-account*.json|*.tfstate|*.tfstate.*)
+                echo "::error file=$path::Potential credential or private state file must not be tracked."
+                blocked=true
+                ;;
+            esac
+          done < <(git ls-files -z)
+
+          if [[ "$blocked" == "true" ]]; then
+            exit 1
+          fi
+
+      - name: Detect representative secret formats
+        shell: bash
+        run: |
+          suspect_files="$RUNNER_TEMP/suspect-secret-files"
+          if git grep -IlE '(-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|sk-[A-Za-z0-9_-]{20,})' -- . > "$suspect_files"; then
+            echo "::error::Potential secret material was detected in these tracked files:"
+            sed 's/^/ - /' "$suspect_files"
+            exit 1
+          fi
+
+      - name: Detect Node project
+        id: node-project
+        shell: bash
+        run: |
+          if [[ -f package.json && -f package-lock.json ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.node-project.outputs.enabled == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install dependencies
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npm ci
+
+      - name: Type-check
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npm run typecheck --if-present
+
+      - name: Lint
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npm run lint --if-present
+
+      - name: Test
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npm test --if-present
+
+      - name: Build
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npm run build --if-present
+
+      - name: Documentation-only status
+        if: steps.node-project.outputs.enabled != 'true'
+        run: echo "Application source is not present yet; documentation validation completed."
+
+  deploy-cloudflare:
+    name: Deploy Cloudflare when configured
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # GitHub does not allow secrets to be referenced directly in an `if:`
+      # expression. Map them to environment variables, then expose only a
+      # boolean output. Secret values are never printed.
+      - name: Decide whether Cloudflare deploy is enabled
+        id: cloudflare
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          app_ready=false
+          if [[ -f package.json && -f package-lock.json ]] && \
+             node -e 'const p=require("./package.json"); process.exit(p.scripts?.["deploy:cloudflare"] ? 0 : 1)'; then
+            app_ready=true
+          fi
+
+          if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" && "$app_ready" == "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare credentials and the deploy script are configured; deployment is enabled."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare credentials or the deploy script are not configured; deployment will be skipped."
+          fi
+
+      - name: Set up Node.js
+        if: steps.cloudflare.outputs.enabled == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install dependencies
+        if: steps.cloudflare.outputs.enabled == 'true'
+        run: npm ci
+
+      - name: Deploy Worker
+        if: steps.cloudflare.outputs.enabled == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy:cloudflare
+
+      - name: Cloudflare deploy skipped
+        if: steps.cloudflare.outputs.enabled != 'true'
+        run: echo "CI passed without sending anything to Cloudflare."
