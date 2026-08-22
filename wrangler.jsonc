@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kodomo-shiyakusho",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-08-23",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "AI_ENABLED": "false",
+    "DEMO_AREA": "富士見市・鶴瀬西"
+  }
+}

@@ -27,14 +27,14 @@
 
 | 項目 | 状態 | 補足 |
 | --- | --- | --- |
-| トランシーバーUI | モック実装済み | Cloudflare版へ移植予定 |
-| 音声入力 | 試作済み | iPhone実機で認識精度の再検証が必要 |
-| ごみ分別マスター | 28項目の試作あり | 公式資料との再照合が必要 |
-| 会話生成 | 試作済み | マスター優先、LLMは確認質問に限定 |
-| 音声出力 | 再設計中 | ブラウザ内蔵音声からAivisSpeech Engineへ移行 |
-| Cloudflare配備 | 設計確定 | GitHub連携後に実装 |
+| トランシーバーUI | Cloudflare版MVP実装済み | 大ボタン、録音・通信・回答・復旧状態を実装 |
+| 音声入力 | Worker API実装済み | Workers AI接続は既定で無効。iPhone実機検証が必要 |
+| ごみ分別マスター | 代表ルール実装済み | 富士見市公式資料を根拠として保持 |
+| 会話生成 | 安全な固定ロジック実装済み | 未確認の分別・収集曜日を推測しない |
+| 音声出力 | 接続口実装済み | AivisSpeech未接続時は端末の日本語音声へフォールバック |
+| Cloudflare配備 | 実装済み・認証待ち | GitHub Secretsがある場合だけ自動配備 |
 | TTS基盤 | 設計確定 | Google Cloud Run GPUへ配備 |
-| CI/CD | 設計確定 | GitHub Actions、Wrangler、GCP OIDC |
+| CI/CD | Cloudflare分を実装済み | 型検査、Lint、単体テスト、ビルド、条件付き配備 |
 
 ## 3. MVPの目的
 
@@ -413,26 +413,41 @@ Pull Requestから本番環境へはデプロイしません。
 - TTSのコールドスタート時間を監視する。
 - 危険物のフォールバック発生を監視する。
 
-## 21. 想定ディレクトリ構成
+## 21. 現在のディレクトリ構成
 
 ```text
-apps/
-  web/                 Cloudflare Workers向けWeb UIとAPI
-packages/
-  garbage-rules/       ごみ分別マスターと照合ロジック
-  conversation/        ペルソナ、プロンプト、回答整形
-  speech-text/         読み辞書と読み上げ前処理
-services/
-  tts/                 AivisSpeech Engine用コンテナと認証ラッパー
-infra/
-  cloudflare/          Worker、binding、環境設定
-  gcp/                 Cloud Run、Artifact Registry、Secret Manager
+src/                    React UI、録音、再生、APIクライアント
+worker/                 Worker API、ごみルール、ペルソナ、単体テスト
 .github/
-  workflows/           CIとTTS CD
-docs/                  調査記録、決定記録、運用手順
+  workflows/ci.yml      CIと条件付きCloudflare配備
+wrangler.jsonc          Worker、Static Assets、Workers AI binding
+vite.config.ts          ReactとCloudflare Vite Plugin
+package.json            開発・検証・配備コマンド
 ```
 
-## 22. 環境とシークレット
+構成を分割する規模になるまでは、MVPを単一パッケージとして保ちます。TTSサービスを実装するときだけ `services/tts/` を追加します。
+
+## 22. ローカルでの確認
+
+必要環境はNode.js 22以上です。
+
+```bash
+npm ci
+npm run dev
+```
+
+品質確認は次のコマンドでまとめて行います。
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+初期状態では `AI_ENABLED` が `false` のため、音声認識の推論料金は発生しません。画面下部の例題はクラウド推論なしで動作します。
+
+## 23. 環境とシークレット
 
 秘密値をREADME、ソースコード、Issue、Pull Requestへ記載しません。
 
@@ -457,7 +472,7 @@ Cloudflare配備は上記二つが両方設定されている場合だけ実行�
 
 OpenAI APIキーは使用しません。
 
-## 23. 非機能要件
+## 24. 非機能要件
 
 | 項目 | 初期目標 |
 | --- | --- |
@@ -469,7 +484,7 @@ OpenAI APIキーは使用しません。
 | データ品質 | 公式根拠のない分別を断定しない |
 | アクセシビリティ | 音声と文字の併用、状態を色だけで表さない |
 
-## 24. 決定事項
+## 25. 決定事項
 
 | 日付 | 決定 |
 | --- | --- |
@@ -483,18 +498,18 @@ OpenAI APIキーは使用しません。
 | 2026-08-23 | 音声合成はAivisSpeech EngineをクラウドGPU上で自前運用する |
 | 2026-08-23 | GitHubをソースの正本とする |
 
-## 25. 未決事項
+## 26. 未決事項
 
 - Cloudflare配備用Secretsの登録
 - Google Cloudプロジェクトと請求設定
 - AivisSpeechの最終話者モデルと利用条件の確認
-- 富士見市公式資料のURL、版、確認日の登録
+- 富士見市公式資料の改訂監視方法
 - 鶴瀬西の収集曜日データ
 - 本番ドメイン
 - 音声ログを一切保存しない方針の最終確認
 - 本番で必要な同時利用数
 
-## 26. Notionへの取り込み
+## 27. Notionへの取り込み
 
 ### Markdownファイルとして取り込む場合
 
@@ -511,5 +526,5 @@ READMEの本文をすべてコピーして、空のNotionページへ貼り付�
 
 - プロダクト仕様：1〜11章
 - 技術仕様：12〜17章
-- CI/CD・運用：18〜23章
-- 意思決定・バックログ：24〜25章
+- CI/CD・運用：18〜24章
+- 意思決定・バックログ：25〜26章
