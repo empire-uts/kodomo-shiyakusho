@@ -135,10 +135,10 @@ function App() {
   };
 
   const rememberExchange = (message: string, nextReply: AssistantReply) => {
-    const nextHistory: ConversationMessage[] = [
+    const nextHistory = [
       ...historyRef.current,
-      { role: "user", content: message },
-      { role: "assistant", content: nextReply.displayText },
+      { role: "user" as const, content: message },
+      { role: "assistant" as const, content: nextReply.displayText },
     ].slice(-MAX_HISTORY_MESSAGES);
     historyRef.current = nextHistory;
     try {
