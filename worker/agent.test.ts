@@ -8,7 +8,9 @@ describe("runAgent", () => {
     const reply = await runAgent({ run, toMarkdown: vi.fn() }, "  いま、いる？  ");
     const input = run.mock.calls[0][1] as { messages: Array<{ role: string; content: string }> };
     expect(SYSTEM_PROMPT).toContain("段取りを引き受け");
-    expect(SYSTEM_PROMPT).toContain("話題や回答範囲を限定しません");
+    expect(SYSTEM_PROMPT).toContain("日常の相談全般");
+    expect(SYSTEM_PROMPT).toContain("スキルがないことを理由に断りません");
+    expect(SYSTEM_PROMPT).toContain("内部の判断");
     expect(input.messages).toEqual([
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: "  いま、いる？  " },
