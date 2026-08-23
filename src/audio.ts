@@ -1,10 +1,41 @@
 let audioContext: AudioContext | null = null;
 let activeAnswer: AudioBufferSourceNode | null = null;
 let speechSynthesisPrimed = false;
+let speechSynthesisPriming: Promise<void> | null = null;
 
 function context(): AudioContext {
   audioContext ??= new AudioContext();
   return audioContext;
+}
+
+async function primeSpeechSynthesis(): Promise<void> {
+  if (!("speechSynthesis" in window) || speechSynthesisPrimed) return;
+  speechSynthesisPriming ??= new Promise<void>((resolve) => {
+    const primer = new SpeechSynthesisUtterance(".");
+    primer.volume = 0.01;
+    primer.rate = 10;
+    let settled = false;
+    let timeout = 0;
+    const finish = (started: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      if (started) speechSynthesisPrimed = true;
+      resolve();
+    };
+    primer.addEventListener("start", () => finish(true), { once: true });
+    primer.addEventListener("end", () => finish(true), { once: true });
+    primer.addEventListener("error", () => finish(false), { once: true });
+    timeout = window.setTimeout(() => finish(false), 500);
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(primer);
+  });
+  try {
+    await speechSynthesisPriming;
+  } finally {
+    speechSynthesisPriming = null;
+  }
 }
 
 export async function unlockAudio(): Promise<void> {
@@ -19,15 +50,7 @@ export async function unlockAudio(): Promise<void> {
   oscillator.stop(ctx.currentTime + 0.02);
 
   if ("speechSynthesis" in window) {
-    window.speechSynthesis.getVoices();
-    window.speechSynthesis.resume();
-    if (!speechSynthesisPrimed) {
-      const primer = new SpeechSynthesisUtterance("\u2060");
-      primer.volume = 0.01;
-      primer.rate = 10;
-      window.speechSynthesis.speak(primer);
-      speechSynthesisPrimed = true;
-    }
+    await primeSpeechSynthesis();
   }
 }
 
@@ -77,6 +100,7 @@ export async function playAudioBlob(blob: Blob): Promise<void> {
 
 export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   if (!("speechSynthesis" in window)) return false;
+  if (!speechSynthesisPrimed) await primeSpeechSynthesis();
   let voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) {
     voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
@@ -100,9 +124,12 @@ export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   utterance.rate = 0.96;
   utterance.pitch = 1.74;
   return new Promise<boolean>((resolve) => {
-    utterance.addEventListener("start", () => resolve(true), { once: true });
+    utterance.addEventListener("start", () => {
+      speechSynthesisPrimed = true;
+      resolve(true);
+    }, { once: true });
     utterance.addEventListener("error", () => resolve(false), { once: true });
-    window.setTimeout(() => resolve(window.speechSynthesis.speaking), 1_500);
+    window.setTimeout(() => resolve(window.speechSynthesis.speaking), 2_500);
     window.speechSynthesis.speak(utterance);
   });
 }

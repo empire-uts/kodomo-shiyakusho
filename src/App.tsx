@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   askQuestion,
   requestSpeech,
@@ -9,6 +15,18 @@ import {
 import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, unlockAudio } from "./audio";
 
 type AppState = "idle" | "listening" | "sending" | "answer" | "error";
+type MicrophonePermission = "unknown" | "prompt" | "requesting" | "granted" | "denied";
+
+type ScrollStyle = CSSProperties & {
+  "--scroll-roll": string;
+  "--scroll-shift": string;
+};
+
+interface ScrollDrag {
+  pointerId: number;
+  startY: number;
+  startScrollTop: number;
+}
 
 const HISTORY_STORAGE_KEY = "kodomo-shiyakusho:conversation";
 const SESSION_STORAGE_KEY = "kodomo-shiyakusho:session-id";
@@ -68,7 +86,7 @@ const stateCopy: Record<AppState, { eyebrow: string; title: string; hint: string
   answer: {
     eyebrow: "こども職員からです",
     title: "お返事が届きました",
-    hint: "文字でも同じ内容を確認できます",
+    hint: "下の巻物にも記録しました",
   },
   error: {
     eyebrow: "もう一度できます",
@@ -83,15 +101,21 @@ function App() {
   const [state, setState] = useState<AppState>("idle");
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [heardText, setHeardText] = useState("");
   const [playbackNote, setPlaybackNote] = useState("");
+  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>(loadHistory);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isDraggingScroll, setIsDraggingScroll] = useState(false);
+  const [microphonePermission, setMicrophonePermission] = useState<MicrophonePermission>("unknown");
+  const [permissionMessage, setPermissionMessage] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const stopNoiseRef = useRef<(() => void) | null>(null);
   const recordingTimerRef = useRef<number | null>(null);
-  const historyRef = useRef<ConversationMessage[]>(loadHistory());
+  const historyRef = useRef<ConversationMessage[]>(conversationHistory);
   const sessionIdRef = useRef(loadSessionId());
+  const scrollPaperRef = useRef<HTMLDivElement | null>(null);
+  const scrollDragRef = useRef<ScrollDrag | null>(null);
 
   useEffect(() => {
     return () => {
@@ -101,6 +125,54 @@ function App() {
       if (recordingTimerRef.current) window.clearTimeout(recordingTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!("permissions" in navigator)) return;
+    let permissionStatus: PermissionStatus | undefined;
+    let active = true;
+    const syncPermission = () => {
+      if (!active || !permissionStatus) return;
+      setMicrophonePermission(permissionStatus.state);
+    };
+    void navigator.permissions.query({ name: "microphone" as PermissionName })
+      .then((status) => {
+        if (!active) return;
+        permissionStatus = status;
+        syncPermission();
+        status.addEventListener("change", syncPermission);
+      })
+      .catch(() => {
+        // Some browsers do not expose microphone state through Permissions API.
+      });
+    return () => {
+      active = false;
+      permissionStatus?.removeEventListener("change", syncPermission);
+    };
+  }, []);
+
+  useEffect(() => {
+    const resumeAudio = () => {
+      if (document.visibilityState === "visible") {
+        void unlockAudio().catch(() => {
+          // A later explicit button press will retry the unlock.
+        });
+      }
+    };
+    window.addEventListener("focus", resumeAudio);
+    document.addEventListener("visibilitychange", resumeAudio);
+    return () => {
+      window.removeEventListener("focus", resumeAudio);
+      document.removeEventListener("visibilitychange", resumeAudio);
+    };
+  }, []);
+
+  useEffect(() => {
+    const paper = scrollPaperRef.current;
+    if (!paper) return;
+    paper.scrollTop = paper.scrollHeight;
+    const maxScroll = paper.scrollHeight - paper.clientHeight;
+    setScrollProgress(maxScroll > 0 ? paper.scrollTop / maxScroll : 0);
+  }, [conversationHistory]);
 
   const stopRadioNoise = () => {
     stopNoiseRef.current?.();
@@ -141,6 +213,7 @@ function App() {
       { role: "assistant" as const, content: nextReply.displayText },
     ].slice(-MAX_HISTORY_MESSAGES);
     historyRef.current = nextHistory;
+    setConversationHistory(nextHistory);
     try {
       sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
     } catch {
@@ -148,10 +221,9 @@ function App() {
     }
   };
 
-  const showReply = async (nextReply: AssistantReply, transcript = "") => {
+  const showReply = async (nextReply: AssistantReply) => {
     stopRadioNoise();
     setReply(nextReply);
-    setHeardText(transcript);
     setState("answer");
     await speakReply(nextReply);
   };
@@ -170,7 +242,7 @@ function App() {
         sessionId: sessionIdRef.current,
       });
       rememberExchange(message, nextReply);
-      await showReply(nextReply, message);
+      await showReply(nextReply);
     } catch (error) {
       showError(error instanceof Error ? error.message : "通信に失敗しました。");
     }
@@ -187,18 +259,50 @@ function App() {
         sessionId: sessionIdRef.current,
       });
       rememberExchange(transcript, nextReply);
-      await showReply(nextReply, transcript);
+      await showReply(nextReply);
     } catch (error) {
       showError(error instanceof Error ? error.message : "音声を読み取れませんでした。");
     }
   };
 
+  const requestMicrophonePermission = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showError("この端末では録音を使えません。下の例題ボタンで試せます。");
+      return;
+    }
+    setMicrophonePermission("requesting");
+    setPermissionMessage("表示された確認で、マイクの使用を許可してください。");
+    try {
+      await unlockAudio();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      setMicrophonePermission("granted");
+      setPermissionMessage("マイクを使えます。話すボタンを押してください。");
+      await unlockAudio();
+    } catch (error) {
+      const denied = error instanceof DOMException && error.name === "NotAllowedError";
+      setMicrophonePermission(denied ? "denied" : "unknown");
+      setPermissionMessage("");
+      showError(denied
+        ? "マイクが許可されていません。アドレスバー付近のサイト設定から、マイクを許可してください。"
+        : "マイクの確認を完了できませんでした。もう一度試してください。");
+    }
+  };
+
   const startRecording = async () => {
+    if (microphonePermission === "prompt" || microphonePermission === "denied") {
+      await requestMicrophonePermission();
+      return;
+    }
     setReply(null);
     setErrorMessage("");
-    setHeardText("");
     setPlaybackNote("");
-    await unlockAudio();
+    setPermissionMessage("");
+    try {
+      await unlockAudio();
+    } catch {
+      // Recording may still work; the stop-button gesture retries audio unlock.
+    }
 
     if (!("MediaRecorder" in window) || !navigator.mediaDevices?.getUserMedia) {
       showError("この端末では録音を使えません。下の例題ボタンで試せます。");
@@ -209,6 +313,8 @@ function App() {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      setMicrophonePermission("granted");
+      await unlockAudio();
       const candidates = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
       const mimeType = candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
@@ -236,15 +342,25 @@ function App() {
         }
       }, 30_000);
     } catch (error) {
-      const message = error instanceof DOMException && error.name === "NotAllowedError"
-        ? "マイクが使えません。ブラウザの設定でマイクを許可してください。"
-        : "マイクを開始できませんでした。下の例題ボタンでも試せます。";
+      const denied = error instanceof DOMException && error.name === "NotAllowedError";
+      if (denied) setMicrophonePermission("denied");
+      const message = denied
+        ? "マイクが許可されていません。アドレスバー付近のサイト設定から、マイクを許可してください。"
+        : error instanceof DOMException && error.name === "NotFoundError"
+          ? "この端末に使えるマイクが見つかりませんでした。"
+          : error instanceof DOMException && error.name === "NotReadableError"
+            ? "マイクをほかのアプリが使用中です。閉じてから、もう一度試してください。"
+            : "マイクを開始できませんでした。下の例題ボタンでも試せます。";
       showError(message);
     }
   };
 
-  const stopRecording = () => {
-    void unlockAudio();
+  const stopRecording = async () => {
+    try {
+      await unlockAudio();
+    } catch {
+      // The visible replay control remains available if autoplay is blocked.
+    }
     if (recordingTimerRef.current) window.clearTimeout(recordingTimerRef.current);
     beginSending();
     recorderRef.current?.stop();
@@ -252,10 +368,14 @@ function App() {
 
   const handleMainButton = () => {
     if (state === "listening") {
-      stopRecording();
+      void stopRecording();
       return;
     }
-    if (state === "sending") return;
+    if (state === "sending" || microphonePermission === "requesting") return;
+    if (state === "idle" && (microphonePermission === "prompt" || microphonePermission === "denied")) {
+      void requestMicrophonePermission();
+      return;
+    }
     void startRecording();
   };
 
@@ -264,7 +384,77 @@ function App() {
     void sendQuestion(example);
   };
 
-  const copy = stateCopy[state];
+  const updateScrollProgress = () => {
+    const paper = scrollPaperRef.current;
+    if (!paper) return;
+    const maxScroll = paper.scrollHeight - paper.clientHeight;
+    setScrollProgress(maxScroll > 0 ? paper.scrollTop / maxScroll : 0);
+  };
+
+  const beginScrollDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    if (event.nativeEvent.offsetX > event.currentTarget.clientWidth - 18) return;
+    scrollDragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startScrollTop: event.currentTarget.scrollTop,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsDraggingScroll(true);
+  };
+
+  const moveScrollDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = scrollDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.currentTarget.scrollTop = drag.startScrollTop - (event.clientY - drag.startY);
+  };
+
+  const finishScrollDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = scrollDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    scrollDragRef.current = null;
+    setIsDraggingScroll(false);
+  };
+
+  const permissionCopy = microphonePermission === "denied"
+    ? {
+        eyebrow: "マイクの設定が必要です",
+        title: "マイクが許可されていません",
+        hint: "サイト設定で許可してから、設定確認を押してください",
+      }
+    : microphonePermission === "requesting"
+      ? {
+          eyebrow: "ブラウザで確認中",
+          title: "マイクの許可を待っています",
+          hint: "表示された確認で、許可を選んでください",
+        }
+      : {
+          eyebrow: "最初の準備",
+          title: "マイクを許可してください",
+          hint: "許可のあと、もう一度押すと録音が始まります",
+        };
+  const isPermissionStep = state === "idle"
+    && (microphonePermission === "prompt" || microphonePermission === "requesting" || microphonePermission === "denied");
+  const copy = isPermissionStep ? permissionCopy : stateCopy[state];
+  const mainButtonLabel = microphonePermission === "requesting"
+    ? "確認中"
+    : state === "idle" && microphonePermission === "denied"
+      ? "設定確認"
+      : state === "idle" && microphonePermission === "prompt"
+        ? "許可"
+        : state === "listening"
+          ? "送る"
+          : state === "sending"
+            ? "通信中"
+            : "話す";
+  const scrollStyle: ScrollStyle = {
+    "--scroll-roll": `${scrollProgress * 540}deg`,
+    "--scroll-shift": `${scrollProgress * 52}px`,
+  };
 
   return (
     <main className="app-shell">
@@ -290,17 +480,32 @@ function App() {
         </div>
         <h2 id="status-title">{copy.title}</h2>
         <p className="state-hint">{copy.hint}</p>
+        {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}
 
-        <button
-          className="talk-button"
-          type="button"
-          onClick={handleMainButton}
-          disabled={state === "sending"}
-          aria-label={state === "listening" ? "録音を止めて送る" : "録音を始める"}
-        >
-          <span className="talk-icon" aria-hidden="true">{state === "listening" ? "■" : "●"}</span>
-          <span>{state === "listening" ? "送る" : state === "sending" ? "通信中" : "話す"}</span>
-        </button>
+        <div className="radio-controls">
+          {state === "answer" && reply ? (
+            <button className="radio-action radio-action-replay" type="button" onClick={() => void speakReply(reply)}>
+              再生
+            </button>
+          ) : <span className="radio-action-placeholder" aria-hidden="true" />}
+
+          <button
+            className="talk-button"
+            type="button"
+            onClick={handleMainButton}
+            disabled={state === "sending" || microphonePermission === "requesting"}
+            aria-label={state === "listening" ? "録音を止めて送る" : "録音を始める"}
+          >
+            <span className="talk-icon" aria-hidden="true">{state === "listening" ? "■" : "●"}</span>
+            <span>{mainButtonLabel}</span>
+          </button>
+
+          {state === "answer" && reply ? (
+            <button className="radio-action radio-action-call" type="button" onClick={() => void startRecording()}>
+              発信
+            </button>
+          ) : <span className="radio-action-placeholder" aria-hidden="true" />}
+        </div>
 
         {state === "sending" && (
           <div className="signal-bars" aria-label="通信しています">
@@ -308,20 +513,7 @@ function App() {
           </div>
         )}
 
-        {state === "answer" && reply && (
-          <article className="answer-card">
-            {heardText && <p className="heard-text">「{heardText}」</p>}
-            <p className="answer-text">{reply.displayText}</p>
-            <div className="answer-actions">
-              <button type="button" onClick={() => void speakReply(reply)}>もう一度聞く</button>
-              <button type="button" onClick={() => setState("idle")}>続けて聞く</button>
-            </div>
-            {playbackNote && <p className="playback-note">{playbackNote}</p>}
-            {reply.sourceUrl && (
-              <a href={reply.sourceUrl} target="_blank" rel="noreferrer">富士見市の根拠を見る</a>
-            )}
-          </article>
-        )}
+        {state === "answer" && playbackNote && <p className="playback-note">{playbackNote}</p>}
 
         {state === "error" && (
           <div className="error-card" role="alert">
@@ -329,6 +521,61 @@ function App() {
             <button type="button" onClick={() => setState("idle")}>もう一度やる</button>
           </div>
         )}
+      </section>
+
+      <section className="desk-panel" aria-labelledby="history-title">
+        <div className="desk-inlay">
+          <header className="desk-heading">
+            <p>これまでのやりとり</p>
+            <h2 id="history-title">相談の巻物</h2>
+          </header>
+
+          <div className="scroll-shell" style={scrollStyle}>
+            <div className="scroll-roller scroll-roller-top" aria-hidden="true">
+              <span className="roller-knob" />
+              <span className="roller-bar" />
+              <span className="roller-knob" />
+            </div>
+
+            <div
+              ref={scrollPaperRef}
+              className={`scroll-paper${isDraggingScroll ? " is-dragging" : ""}`}
+              role="log"
+              aria-live="polite"
+              aria-label="相談の履歴"
+              tabIndex={0}
+              onScroll={updateScrollProgress}
+              onPointerDown={beginScrollDrag}
+              onPointerMove={moveScrollDrag}
+              onPointerUp={finishScrollDrag}
+              onPointerCancel={finishScrollDrag}
+            >
+              <div className="scroll-content">
+                {conversationHistory.length === 0 ? (
+                  <p className="scroll-empty">相談すると、ここにやりとりが書き込まれます。</p>
+                ) : conversationHistory.map((message, index) => (
+                  <article className={`scroll-entry scroll-entry-${message.role}`} key={`${message.role}-${index}`}>
+                    <p className="scroll-speaker">{message.role === "user" ? "あなた" : "こども職員"}</p>
+                    <p className="scroll-message">{message.content}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="scroll-roller scroll-roller-bottom" aria-hidden="true">
+              <span className="roller-knob" />
+              <span className="roller-bar" />
+              <span className="roller-knob" />
+            </div>
+          </div>
+
+          <p className="scroll-help">上下にスクロール、または紙面をドラッグ</p>
+          {state === "answer" && reply?.sourceUrl && (
+            <a className="scroll-source" href={reply.sourceUrl} target="_blank" rel="noreferrer">
+              富士見市の根拠を見る
+            </a>
+          )}
+        </div>
       </section>
 
       <section className="examples" aria-labelledby="examples-title">
