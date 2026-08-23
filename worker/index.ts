@@ -34,12 +34,15 @@ function aiAudioBody(result: unknown): BodyInit {
   if (result instanceof ReadableStream || result instanceof ArrayBuffer || ArrayBuffer.isView(result)) {
     return result as BodyInit;
   }
-  if (typeof result === "string") {
+  const encoded = typeof result === "object" && result !== null && "audio" in result
+    ? (result as { audio: unknown }).audio
+    : result;
+  if (typeof encoded === "string") {
     try {
-      const binary = atob(result);
+      const binary = atob(encoded);
       return Uint8Array.from(binary, (character) => character.charCodeAt(0));
     } catch {
-      return result;
+      return encoded;
     }
   }
   throw new Error("Workers AI returned an unsupported audio body");
