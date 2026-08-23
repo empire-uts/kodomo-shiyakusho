@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -112,7 +113,7 @@ jobs:
   deploy-cloudflare:
     name: Deploy Cloudflare when configured
     needs: validate
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -133,13 +134,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           app_ready=false
+          deploy_script="deploy:cloudflare"
+          if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
+            deploy_script="deploy:cloudflare:dev"
+          fi
+
           if [[ -f package.json && -f package-lock.json ]] && \
-             node -e 'const p=require("./package.json"); process.exit(p.scripts?.["deploy:cloudflare"] ? 0 : 1)'; then
+             DEPLOY_SCRIPT="$deploy_script" node -e 'const p=require("./package.json"); process.exit(p.scripts?.[process.env.DEPLOY_SCRIPT] ? 0 : 1)'; then
             app_ready=true
           fi
 
           if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" && "$app_ready" == "true" ]]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_script=$deploy_script" >> "$GITHUB_OUTPUT"
             echo "Cloudflare credentials and the deploy script are configured; deployment is enabled."
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -162,7 +169,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run deploy:cloudflare
+          DEPLOY_SCRIPT: ${{ steps.cloudflare.outputs.deploy_script }}
+        run: npm run "$DEPLOY_SCRIPT"
 
       - name: Cloudflare deploy skipped
         if: steps.cloudflare.outputs.enabled != 'true'

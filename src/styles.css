@@ -31,6 +31,16 @@ button:focus-visible, a:focus-visible {
   padding: max(22px, env(safe-area-inset-top)) 18px max(32px, env(safe-area-inset-bottom));
 }
 
+.dev-log-notice {
+  margin: 0 0 14px;
+  border-radius: 12px;
+  background: #6b1d1d;
+  color: #fff;
+  padding: 10px 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;

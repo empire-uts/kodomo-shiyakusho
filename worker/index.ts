@@ -9,6 +9,7 @@ interface Env {
   AI?: AiBinding;
   AI_ENABLED?: string;
   DEMO_AREA?: string;
+  DIAGNOSTIC_LOGGING?: string;
   TTS_BASE_URL?: string;
   TTS_SHARED_SECRET?: string;
 }
@@ -35,15 +36,23 @@ async function readJson<T>(request: Request, maxBytes = 2_048): Promise<T> {
   return request.json<T>();
 }
 
-async function handleChat(request: Request): Promise<Response> {
+async function handleChat(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return methodNotAllowed();
   try {
-    const body = await readJson<{ message?: unknown }>(request);
+    const body = await readJson<{ message?: unknown; inputSource?: unknown }>(request);
     if (typeof body.message !== "string" || !body.message.trim()) {
       return json({ error: "INVALID_MESSAGE", message: "質問を話してください。" }, 400);
     }
     const message = body.message.trim().slice(0, 300);
-    return json(answerQuestion(message));
+    const reply = answerQuestion(message);
+    if (env.DIAGNOSTIC_LOGGING === "true" && body.inputSource === "voice") {
+      console.log({
+        event: "voice_interaction",
+        transcript: message,
+        responseText: reply.displayText,
+      });
+    }
+    return json(reply);
   } catch (error) {
     const message = error instanceof Error ? error.message : "質問を読み取れませんでした。";
     return json({ error: "INVALID_REQUEST", message }, 400);
@@ -138,7 +147,7 @@ export default {
     if (url.pathname === "/api/health") {
       return json({ ok: true, area: env.DEMO_AREA ?? "未設定", aiEnabled: env.AI_ENABLED === "true", ttsEnabled: Boolean(env.TTS_BASE_URL && env.TTS_SHARED_SECRET) });
     }
-    if (url.pathname === "/api/chat") return handleChat(request);
+    if (url.pathname === "/api/chat") return handleChat(request, env);
     if (url.pathname === "/api/transcribe") return handleTranscribe(request, env);
     if (url.pathname === "/api/speech") return handleSpeech(request, env);
     if (url.pathname.startsWith("/api/")) return json({ error: "NOT_FOUND", message: "この機能はありません。" }, 404);

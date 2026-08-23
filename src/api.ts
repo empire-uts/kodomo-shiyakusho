@@ -20,11 +20,14 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export async function askQuestion(message: string): Promise<AssistantReply> {
+export async function askQuestion(
+  message: string,
+  inputSource: "voice" | "example" = "example",
+): Promise<AssistantReply> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, inputSource }),
   });
   return parseResponse<AssistantReply>(response);
 }

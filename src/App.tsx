@@ -40,6 +40,7 @@ const stateCopy: Record<AppState, { eyebrow: string; title: string; hint: string
 };
 
 function App() {
+  const diagnosticLogging = import.meta.env.VITE_DIAGNOSTIC_LOGGING === "true";
   const [state, setState] = useState<AppState>("idle");
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -120,7 +121,7 @@ function App() {
         throw new Error("声が短すぎたようです。もう一度、ゆっくり話してください。");
       }
       const transcript = await transcribeAudio(blob);
-      const nextReply = await askQuestion(transcript);
+      const nextReply = await askQuestion(transcript, "voice");
       await showReply(nextReply, transcript);
     } catch (error) {
       showError(error instanceof Error ? error.message : "音声を読み取れませんでした。");
@@ -202,6 +203,9 @@ function App() {
 
   return (
     <main className="app-shell">
+      {diagnosticLogging && (
+        <p className="dev-log-notice" role="status">DEV版：発話の文字起こしと回答をログ記録中</p>
+      )}
       <header className="topbar">
         <div>
           <p className="audience-label">高齢者向け音声案内</p>

@@ -10,7 +10,8 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",
-    "deploy:cloudflare": "npm run build && wrangler deploy"
+    "deploy:cloudflare": "npm run build && wrangler deploy",
+    "deploy:cloudflare:dev": "VITE_DIAGNOSTIC_LOGGING=true npm run build && wrangler deploy --config wrangler.dev.jsonc"
   },
   "dependencies": {
     "react": "^19.2.8",
