@@ -143,8 +143,3 @@ export async function searchOfficialWasteInfo(ai: MarkdownAi, query: string): Pr
     };
   }
 }
-
-export async function getOfficialWasteDebugExcerpt(ai: MarkdownAi): Promise<{ length: number; excerpt: string }> {
-  const markdown = await loadOfficialDictionary(ai);
-  return { length: markdown.length, excerpt: markdown.slice(0, 2_000) };
-}

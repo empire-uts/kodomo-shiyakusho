@@ -1,6 +1,5 @@
 import { encodeAudioBase64 } from "./audio";
 import { runAgent } from "./agent";
-import { getOfficialWasteDebugExcerpt, searchOfficialWasteInfo } from "./skills/fujimi-waste";
 
 interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -166,14 +165,6 @@ export default {
         llmEnabled: env.LLM_ENABLED === "true",
         ttsEnabled: Boolean(env.TTS_BASE_URL && env.TTS_SHARED_SECRET),
       });
-    }
-    if (url.pathname === "/api/debug/waste-search" && env.DIAGNOSTIC_LOGGING === "true" && env.AI) {
-      const query = url.searchParams.get("q")?.slice(0, 100) ?? "";
-      if (!query) return json({ error: "QUERY_REQUIRED" }, 400);
-      return json(await searchOfficialWasteInfo(env.AI, query));
-    }
-    if (url.pathname === "/api/debug/waste-raw" && env.DIAGNOSTIC_LOGGING === "true" && env.AI) {
-      return json(await getOfficialWasteDebugExcerpt(env.AI));
     }
     if (url.pathname === "/api/chat") return handleChat(request, env);
     if (url.pathname === "/api/transcribe") return handleTranscribe(request, env);
