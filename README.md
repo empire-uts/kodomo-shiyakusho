@@ -36,7 +36,7 @@ Qwenへ常時渡すsystemメッセージは次の2文だけです。
 ]
 ```
 
-推論パラメータは `max_tokens: 512`、`temperature: 0.7`、`top_p: 0.9`、`repetition_penalty: 1.05` です。Qwenが思考だけで出力枠を使い切らないため、実環境テスト後に256から512へ変更しました。
+生成上限はアプリ側で指定せず、Cloudflare側のモデル既定値に任せます。推論パラメータは `temperature: 0.7`、`top_p: 0.9`、`repetition_penalty: 1.05` です。
 
 ## エージェンティックなスキル
 
