@@ -27,10 +27,15 @@ function modelText(result: unknown): string {
 }
 
 export function applyPersonaResult(base: Reply, result: unknown): Reply {
+  const decorate = (prefix = "はーいっ！", suffix = "またきいてね♪"): Reply => ({
+    ...base,
+    displayText: `${prefix} ${base.displayText} ${suffix}`,
+    speechText: `はーい。${base.speechText}またきいてね。`,
+  });
   const raw = modelText(result).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) return base;
+  if (start < 0 || end <= start) return decorate();
 
   try {
     const parsed = JSON.parse(raw.slice(start, end + 1)) as {
@@ -39,13 +44,12 @@ export function applyPersonaResult(base: Reply, result: unknown): Reply {
     };
     const prefix = typeof parsed.prefix === "string" ? parsed.prefix.trim() : "";
     const suffix = typeof parsed.suffix === "string" ? parsed.suffix.trim() : "";
-    if (!prefix || prefix.length > 24 || !suffix || suffix.length > 24) return base;
-    return {
-      ...base,
-      displayText: `${prefix} ${base.displayText} ${suffix}`,
-      speechText: `はーい。${base.speechText}またきいてね。`,
-    };
+    const factualWords = /ごみ|ゴミ|電池|缶|傘|おむつ|市役所|収集|曜日|ビン|トイレ|機械|音/;
+    if (!prefix || prefix.length > 24 || !suffix || suffix.length > 24 || factualWords.test(prefix + suffix)) {
+      return decorate();
+    }
+    return decorate(prefix, suffix);
   } catch {
-    return base;
+    return decorate();
   }
 }

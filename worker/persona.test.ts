@@ -16,7 +16,9 @@ describe("applyPersonaResult", () => {
     expect(reply.speechText).toContain(base.speechText);
   });
 
-  it("falls back to the verified reply on malformed output", () => {
-    expect(applyPersonaResult(base, { response: "not json" })).toEqual(base);
+  it("falls back to safe fixed decoration on malformed output", () => {
+    const reply = applyPersonaResult(base, { response: "not json" });
+    expect(reply.displayText).toContain(base.displayText);
+    expect(reply.ruleId).toBe(base.ruleId);
   });
 });
