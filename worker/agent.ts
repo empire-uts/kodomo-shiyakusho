@@ -131,7 +131,7 @@ export async function runAgent(ai: AiBinding, userInput: string): Promise<AgentR
     const result = await ai.run(MODEL, {
       messages,
       ...(canCallTool ? { tools: TOOLS } : {}),
-      max_tokens: 256,
+      max_tokens: 512,
       temperature: 0.7,
       top_p: 0.9,
       repetition_penalty: 1.05,

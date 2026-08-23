@@ -11,6 +11,7 @@ describe("runAgent", () => {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: "  いま、いる？  " },
     ]);
+    expect((run.mock.calls[0][1] as { max_tokens: number }).max_tokens).toBe(512);
     expect(reply.displayText).toBe("はい、います！");
   });
 
