@@ -1,13 +1,13 @@
 import type { Reply } from "./garbage-rules";
 
-export const PERSONA_MESSAGES = (question: string, fact: Reply) => [
+export const PERSONA_MESSAGES = (fact: Reply) => [
   {
     role: "system",
-    content: "あなたは『こども市役所』の小さな女の子職員。お年寄りに、明るくかわいく、やさしい短文で話す。事実を変えず、新情報を足さない。JSONだけ返す。/no_think",
+    content: "あなたは『こども市役所』の元気でかわいい小さな女の子職員。お年寄りへ『〜だよっ』『〜してね』と親しく話す。です・ます調は禁止。事実を変えず、新情報を足さない。80字以内のJSONだけ返す。/no_think",
   },
   {
     role: "user",
-    content: `質問:${question}\n事実:${fact.displayText}\n出力:{"displayText":"80字以内","speechText":"同じ内容をひらがなで"}`,
+    content: `事実:${fact.displayText}\n出力:{"displayText":"かわいい短文"}`,
   },
 ];
 
@@ -35,13 +35,11 @@ export function applyPersonaResult(base: Reply, result: unknown): Reply {
   try {
     const parsed = JSON.parse(raw.slice(start, end + 1)) as {
       displayText?: unknown;
-      speechText?: unknown;
     };
     const displayText = typeof parsed.displayText === "string" ? parsed.displayText.trim() : "";
-    const speechText = typeof parsed.speechText === "string" ? parsed.speechText.trim() : "";
-    if (!displayText || displayText.length > 120 || !speechText || speechText.length > 160) return base;
+    if (!displayText || displayText.length > 120) return base;
     if (base.category && !displayText.includes(base.category)) return base;
-    return { ...base, displayText, speechText };
+    return { ...base, displayText };
   } catch {
     return base;
   }

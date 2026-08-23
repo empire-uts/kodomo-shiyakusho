@@ -51,8 +51,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     if (env.LLM_ENABLED === "true" && env.AI) {
       try {
         const result = await env.AI.run("@cf/qwen/qwen3-30b-a3b-fp8", {
-          messages: PERSONA_MESSAGES(message, baseReply),
-          max_tokens: 120,
+          messages: PERSONA_MESSAGES(baseReply),
+          max_tokens: 80,
           temperature: 0.75,
           top_p: 0.85,
           repetition_penalty: 1.08,

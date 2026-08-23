@@ -98,7 +98,7 @@ export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   utterance.lang = "ja-JP";
   utterance.voice = voice;
   utterance.rate = 0.96;
-  utterance.pitch = 1.62;
+  utterance.pitch = 1.74;
   return new Promise<boolean>((resolve) => {
     utterance.addEventListener("start", () => resolve(true), { once: true });
     utterance.addEventListener("error", () => resolve(false), { once: true });
