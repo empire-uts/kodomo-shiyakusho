@@ -159,7 +159,13 @@ async function handleSpeech(request: Request, env: Env): Promise<Response> {
       });
     }
 
-    const audio = await env.AI!.run("@cf/myshell-ai/melotts", { prompt: text, lang: "ja" });
+    const requestedLanguage = env.DIAGNOSTIC_LOGGING === "true"
+      ? new URL(request.url).searchParams.get("lang")
+      : null;
+    const language = requestedLanguage && /^[a-z]{2}$/i.test(requestedLanguage)
+      ? requestedLanguage
+      : "jp";
+    const audio = await env.AI!.run("@cf/myshell-ai/melotts", { prompt: text, lang: language });
     return new Response(aiAudioBody(audio), {
       headers: {
         "cache-control": "private, no-store",
