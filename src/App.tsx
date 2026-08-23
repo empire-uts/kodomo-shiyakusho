@@ -1,8 +1,46 @@
 import { useEffect, useRef, useState } from "react";
-import { askQuestion, requestSpeech, transcribeAudio, type AssistantReply } from "./api";
+import {
+  askQuestion,
+  requestSpeech,
+  transcribeAudio,
+  type AssistantReply,
+  type ConversationMessage,
+} from "./api";
 import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, unlockAudio } from "./audio";
 
 type AppState = "idle" | "listening" | "sending" | "answer" | "error";
+
+const HISTORY_STORAGE_KEY = "kodomo-shiyakusho:conversation";
+const SESSION_STORAGE_KEY = "kodomo-shiyakusho:session-id";
+const MAX_HISTORY_MESSAGES = 6;
+
+function loadHistory(): ConversationMessage[] {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]") as unknown;
+    if (!Array.isArray(value)) return [];
+    const history = value.filter((item): item is ConversationMessage => (
+      typeof item === "object"
+      && item !== null
+      && ("role" in item && (item.role === "user" || item.role === "assistant"))
+      && ("content" in item && typeof item.content === "string")
+    ));
+    return history.slice(-MAX_HISTORY_MESSAGES);
+  } catch {
+    return [];
+  }
+}
+
+function loadSessionId(): string {
+  try {
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored) return stored;
+    const created = crypto.randomUUID();
+    sessionStorage.setItem(SESSION_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
 
 const examples = [
   "アイロンは何ごみ？",
@@ -52,6 +90,8 @@ function App() {
   const chunksRef = useRef<Blob[]>([]);
   const stopNoiseRef = useRef<(() => void) | null>(null);
   const recordingTimerRef = useRef<number | null>(null);
+  const historyRef = useRef<ConversationMessage[]>(loadHistory());
+  const sessionIdRef = useRef(loadSessionId());
 
   useEffect(() => {
     return () => {
@@ -94,6 +134,20 @@ function App() {
     }
   };
 
+  const rememberExchange = (message: string, nextReply: AssistantReply) => {
+    const nextHistory: ConversationMessage[] = [
+      ...historyRef.current,
+      { role: "user", content: message },
+      { role: "assistant", content: nextReply.displayText },
+    ].slice(-MAX_HISTORY_MESSAGES);
+    historyRef.current = nextHistory;
+    try {
+      sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
+    } catch {
+      // The current tab can continue even when storage is unavailable.
+    }
+  };
+
   const showReply = async (nextReply: AssistantReply, transcript = "") => {
     stopRadioNoise();
     setReply(nextReply);
@@ -111,7 +165,11 @@ function App() {
   const sendQuestion = async (message: string) => {
     beginSending();
     try {
-      const nextReply = await askQuestion(message);
+      const nextReply = await askQuestion(message, "example", {
+        history: historyRef.current,
+        sessionId: sessionIdRef.current,
+      });
+      rememberExchange(message, nextReply);
       await showReply(nextReply, message);
     } catch (error) {
       showError(error instanceof Error ? error.message : "通信に失敗しました。");
@@ -124,7 +182,11 @@ function App() {
         throw new Error("声が短すぎたようです。もう一度、ゆっくり話してください。");
       }
       const transcript = await transcribeAudio(blob);
-      const nextReply = await askQuestion(transcript, "voice");
+      const nextReply = await askQuestion(transcript, "voice", {
+        history: historyRef.current,
+        sessionId: sessionIdRef.current,
+      });
+      rememberExchange(transcript, nextReply);
       await showReply(nextReply, transcript);
     } catch (error) {
       showError(error instanceof Error ? error.message : "音声を読み取れませんでした。");

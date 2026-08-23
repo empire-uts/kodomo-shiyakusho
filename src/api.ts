@@ -1,3 +1,13 @@
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ConversationContext {
+  history: ConversationMessage[];
+  sessionId: string;
+}
+
 export interface AssistantReply {
   displayText: string;
   speechText: string;
@@ -21,11 +31,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export async function askQuestion(
   message: string,
   inputSource: "voice" | "example" = "example",
+  context?: ConversationContext,
 ): Promise<AssistantReply> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message, inputSource }),
+    body: JSON.stringify({ message, inputSource, ...context }),
   });
   return parseResponse<AssistantReply>(response);
 }

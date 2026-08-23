@@ -17,6 +17,21 @@ describe("runAgent", () => {
     expect(reply.displayText).toBe("はい、います！");
   });
 
+  it("places recent conversation before the current user message", async () => {
+    const run = vi.fn().mockResolvedValue({ response: "では、温かいうどんにしましょう！" });
+    await runAgent({ run, toMarkdown: vi.fn() }, "温かいのがいい", [
+      { role: "user", content: "お昼、何がいい？" },
+      { role: "assistant", content: "温かいものと冷たいもの、どちらがいいですか？" },
+    ]);
+    const input = run.mock.calls[0][1] as { messages: Array<{ role: string; content: string }> };
+    expect(input.messages).toEqual([
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: "お昼、何がいい？" },
+      { role: "assistant", content: "温かいものと冷たいもの、どちらがいいですか？" },
+      { role: "user", content: "温かいのがいい" },
+    ]);
+  });
+
   it("executes a selected local skill and returns the model's final answer", async () => {
     const run = vi.fn()
       .mockResolvedValueOnce({ tool_calls: [{ name: "search_local_waste_guide", arguments: { query: "乾電池" } }] })

@@ -22,6 +22,11 @@ interface Message {
   content: string;
 }
 
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface AgentReply {
   displayText: string;
   speechText: string;
@@ -118,9 +123,14 @@ function cleanAnswer(value: string): string {
   return value.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
-export async function runAgent(ai: AiBinding, userInput: string): Promise<AgentReply> {
+export async function runAgent(
+  ai: AiBinding,
+  userInput: string,
+  history: ConversationMessage[] = [],
+): Promise<AgentReply> {
   const messages: Message[] = [
     { role: "system", content: SYSTEM_PROMPT },
+    ...history,
     { role: "user", content: userInput },
   ];
   const toolsUsed: string[] = [];

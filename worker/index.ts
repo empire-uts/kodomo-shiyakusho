@@ -1,5 +1,5 @@
 import { encodeAudioBase64 } from "./audio";
-import { runAgent } from "./agent";
+import { runAgent, type ConversationMessage } from "./agent";
 
 interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -35,30 +35,72 @@ function methodNotAllowed(): Response {
 async function readJson<T>(request: Request, maxBytes = 2_048): Promise<T> {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > maxBytes) throw new Error("入力が長すぎます。");
-  return request.json<T>();
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > maxBytes) throw new Error("入力が長すぎます。");
+  return JSON.parse(text) as T;
+}
+
+function parseHistory(value: unknown): ConversationMessage[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 6 || value.length % 2 !== 0) return null;
+  let totalCharacters = 0;
+  const history: ConversationMessage[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const item = value[index];
+    const expectedRole = index % 2 === 0 ? "user" : "assistant";
+    if (
+      typeof item !== "object"
+      || item === null
+      || !("role" in item)
+      || item.role !== expectedRole
+      || !("content" in item)
+      || typeof item.content !== "string"
+      || !item.content.trim()
+      || item.content.length > 1_000
+    ) return null;
+    totalCharacters += item.content.length;
+    history.push({ role: expectedRole, content: item.content });
+  }
+  return totalCharacters <= 6_000 ? history : null;
 }
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return methodNotAllowed();
   try {
-    const body = await readJson<{ message?: unknown; inputSource?: unknown }>(request);
+    const body = await readJson<{
+      message?: unknown;
+      inputSource?: unknown;
+      history?: unknown;
+      sessionId?: unknown;
+    }>(request, 12_288);
     if (typeof body.message !== "string" || !body.message.trim()) {
       return json({ error: "INVALID_MESSAGE", message: "質問を話してください。" }, 400);
     }
     const message = body.message;
+    const history = parseHistory(body.history);
+    if (history === null) {
+      return json({ error: "INVALID_HISTORY", message: "会話履歴の形式が正しくありません。" }, 400);
+    }
+    const sessionId = typeof body.sessionId === "string" && /^[A-Za-z0-9-]{1,64}$/.test(body.sessionId)
+      ? body.sessionId
+      : undefined;
     if (message.length > 1_000) {
       return json({ error: "MESSAGE_TOO_LONG", message: "質問が長すぎます。短く話してください。" }, 413);
     }
     if (env.LLM_ENABLED !== "true" || !env.AI) {
       return json({ error: "LLM_DISABLED", message: "こども職員は、いま準備中です。" }, 503);
     }
-    const reply = await runAgent(env.AI, message);
+    const reply = await runAgent(env.AI, message, history);
     if (env.DIAGNOSTIC_LOGGING === "true" && body.inputSource === "voice") {
-      console.log({
+      console.log(JSON.stringify({
         event: "voice_interaction",
+        sessionId,
+        turn: history.length / 2 + 1,
+        historyLength: history.length,
         transcript: message,
         responseText: reply.displayText,
-      });
+        toolsUsed: reply.toolsUsed ?? [],
+      }));
     }
     return json(reply);
   } catch (error) {
