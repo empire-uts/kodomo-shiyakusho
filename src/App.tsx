@@ -5,10 +5,10 @@ import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, unlockAudio } f
 type AppState = "idle" | "listening" | "sending" | "answer" | "error";
 
 const examples = [
-  "乾電池は何ごみ？",
-  "スプレー缶はどう出す？",
-  "ごみを出し忘れた",
+  "アイロンは何ごみ？",
   "今日は何ごみ？",
+  "自己紹介して",
+  "お昼ごはん、何がいいと思う？",
 ];
 
 const stateCopy: Record<AppState, { eyebrow: string; title: string; hint: string }> = {
@@ -271,7 +271,7 @@ function App() {
 
       <section className="examples" aria-labelledby="examples-title">
         <h2 id="examples-title">声を使わず試す</h2>
-        <p>今は、次の質問を安全な確認済み回答で試せます。</p>
+        <p>質問を選んで、こども職員の返事を試せます。</p>
         <div className="example-grid">
           {examples.map((example) => (
             <button key={example} type="button" onClick={() => handleExample(example)} disabled={state === "sending"}>
@@ -283,7 +283,7 @@ function App() {
 
       <footer>
         <p>これは子ども向けではなく、高齢者向けの試作アプリです。</p>
-        <p>分別は富士見市の公開情報を優先し、分からないことは断定しません。</p>
+        <p>必要なときは、設定地域の公開情報を調べて答えます。</p>
       </footer>
     </main>
   );

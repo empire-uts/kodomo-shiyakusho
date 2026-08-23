@@ -1,10 +1,8 @@
 export interface AssistantReply {
   displayText: string;
   speechText: string;
-  source: "master" | "official-guidance" | "fallback";
-  ruleId: string;
-  category?: string;
   sourceUrl?: string;
+  toolsUsed?: string[];
 }
 
 interface ErrorPayload {

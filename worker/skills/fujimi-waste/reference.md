@@ -1,0 +1,49 @@
+# 富士見市・鶴瀬西3丁目 ごみ案内
+
+確認日: 2026-08-23  
+対象地域: 埼玉県富士見市鶴瀬西3丁目
+
+## 収集曜日
+
+- 可燃ごみ: 火曜日・金曜日
+- 資源プラスチック: 金曜日
+- 不燃・有害ごみ、ペットボトル、紙・布類、ビン、カン: 水曜日
+- 当日の午前8時30分までに、決められた集積所へ出す
+- 祝日も収集する
+- 年末年始は変更されるため、その年の市の案内を確認する
+
+## 基本的な分別
+
+- 可燃ごみ: 生ごみ、汚れを落とせないプラスチック、座布団、ぬいぐるみ、おむつなど
+- 資源プラスチック: 汚れを洗い落としたプラスチック製品
+- 不燃ごみ: 金属、ガラス、陶器、小型家電など
+- 有害ごみ: 乾電池、使い切ったライター、コイン電池、充電池を外せない小型家電など
+- ビン: 飲料・食品・化粧品のビン、使い切ったスプレー缶など
+- カン: 缶詰、飲料缶、オイル缶など
+- 粗大ごみ: おおむね一斗缶（24cm×24cm×35cm）より大きいもの。事前申込み・有料
+
+## 電池の注意
+
+- 乾電池: 有害ごみ
+- コイン電池（CR・BR）: 有害ごみ
+- ボタン電池（LR・SR・PR）: 集積所では回収しない。端子を絶縁して協力店の回収缶へ
+- 外せる充電池: 端子を絶縁し、JBRCの協力店回収を優先
+- 充電池を外せない小型家電: 有害ごみ
+- 膨張・変形・液漏れした充電池: 集積所や協力店へ持ち込まず、富士見市環境課へ相談
+
+## 個別の例
+
+- アイロン: 不燃ごみ
+- おむつ: 可燃ごみ。汚物はトイレへ流す
+- 乾電池: 有害ごみ
+- 傘: 不燃ごみ。できる限り分解する。親骨が70cmを超えるものは環境課へ相談
+- スプレー缶・カセットガス缶: 中身を使い切り、穴を開けず、ビンのかごへ
+
+## 情報源
+
+- [富士見市「ごみの分別・収集について」](https://www.city.fujimi.saitama.jp/kurashi_tetsuzuki/gomi_recycle/gomi/dashikata/gominobunbtunituite.html)
+- [富士見市「家庭ごみと資源の出し方」](https://www.city.fujimi.saitama.jp/kurashi_tetsuzuki/gomi_recycle/gomi/dashikata/gominobunbtunituite.files/R7_pamphlet.pdf)（収集曜日表は7ページ）
+- [富士見市「ごみ分別辞典（令和8年7月版）」](https://www.city.fujimi.saitama.jp/kurashi_tetsuzuki/gomi_recycle/gomi/dashikata/gominobunbtunituite.files/gomibunnbetuziten20260724.pdf)
+- [富士見市「ボタン電池・コイン電池の処分方法について」](https://www.city.fujimi.saitama.jp/kurashi_tetsuzuki/gomi_recycle/gomi/dashikata/botan_coin_denchi.html)
+
+この資料はLLMの常設プロンプトではない。LLMが `get_local_waste_schedule` または `search_local_waste_guide` を選んだときだけ、該当部分を会話へ追加する。

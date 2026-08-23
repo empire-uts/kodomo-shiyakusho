@@ -1,9 +1,9 @@
-import { answerQuestion } from "./garbage-rules";
 import { encodeAudioBase64 } from "./audio";
-import { applyPersonaResult, PERSONA_MESSAGES } from "./persona";
+import { runAgent } from "./agent";
 
 interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
+  toMarkdown(input: { name: string; blob: Blob }): Promise<{ format?: string; data?: string; error?: string } | Array<{ format?: string; data?: string; error?: string }>>;
 }
 
 interface Env {
@@ -45,25 +45,14 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     if (typeof body.message !== "string" || !body.message.trim()) {
       return json({ error: "INVALID_MESSAGE", message: "質問を話してください。" }, 400);
     }
-    const message = body.message.trim().slice(0, 300);
-    const baseReply = answerQuestion(message);
-    let reply = baseReply;
-    if (env.LLM_ENABLED === "true" && env.AI) {
-      try {
-        const result = await env.AI.run("@cf/qwen/qwen3-30b-a3b-fp8", {
-          messages: PERSONA_MESSAGES(baseReply),
-          max_tokens: 48,
-          temperature: 0.75,
-          top_p: 0.85,
-          repetition_penalty: 1.08,
-          response_format: { type: "json_object" },
-          stream: false,
-        });
-        reply = applyPersonaResult(baseReply, result);
-      } catch {
-        reply = baseReply;
-      }
+    const message = body.message;
+    if (message.length > 1_000) {
+      return json({ error: "MESSAGE_TOO_LONG", message: "質問が長すぎます。短く話してください。" }, 413);
     }
+    if (env.LLM_ENABLED !== "true" || !env.AI) {
+      return json({ error: "LLM_DISABLED", message: "こども職員は、いま準備中です。" }, 503);
+    }
+    const reply = await runAgent(env.AI, message);
     if (env.DIAGNOSTIC_LOGGING === "true" && body.inputSource === "voice") {
       console.log({
         event: "voice_interaction",
@@ -73,8 +62,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     }
     return json(reply);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "質問を読み取れませんでした。";
-    return json({ error: "INVALID_REQUEST", message }, 400);
+    const message = error instanceof Error ? error.message : "回答を作れませんでした。";
+    return json({ error: "CHAT_FAILED", message }, 502);
   }
 }
 
@@ -109,7 +98,6 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
       task: "transcribe",
       vad_filter: true,
       condition_on_previous_text: false,
-      initial_prompt: "富士見市、鶴瀬西、可燃ごみ、不燃ごみ、有害ごみ、乾電池、充電池、粗大ごみ、集積所",
     });
     const text = typeof result === "object" && result !== null && "text" in result
       ? String((result as { text: unknown }).text).trim()
