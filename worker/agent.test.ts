@@ -19,6 +19,19 @@ describe("runAgent", () => {
     expect(reply.displayText).toBe("はい、います！");
   });
 
+  it("removes emoji, kaomoji, and decorative symbols from the answer", async () => {
+    const run = vi.fn().mockResolvedValue({
+      choices: [{
+        message: {
+          content: "はい！😊 いっしょに進めますね～♪ (^^)/\n1️⃣ まず確認します。",
+        },
+      }],
+    });
+    const reply = await runAgent({ run, toMarkdown: vi.fn() }, "手伝って");
+    expect(reply.displayText).toBe("はい！ いっしょに進めますね～\n1 まず確認します。");
+    expect(reply.speechText).toBe(reply.displayText);
+  });
+
   it("places recent conversation before the current user message", async () => {
     const run = vi.fn().mockResolvedValue({ response: "では、温かいうどんにしましょう！" });
     await runAgent({ run, toMarkdown: vi.fn() }, "温かいのがいい", [

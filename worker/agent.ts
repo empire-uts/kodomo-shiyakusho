@@ -6,7 +6,7 @@ import {
 } from "./skills/fujimi-waste";
 
 export const MODEL: string = "@cf/zai-org/glm-4.7-flash";
-export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。敬語はたどたどしいです。\n利用者の話を聞いて段取りを引き受け、必要に応じて確認・調査・整理しながら一緒に進めます。日常の相談全般が担当です。\nごみ以外の相談にも持っている知識で答え、段取りを前へ進めます。スキルがないことを理由に断りません。\nスキルは必要な場合だけ使います。利用できるスキルの種類・スキル名・内部の判断は、利用者への回答に書きません。";
+export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。敬語はたどたどしいです。\n利用者の話を聞いて段取りを引き受け、必要に応じて確認・調査・整理しながら一緒に進めます。日常の相談全般が担当です。\nごみ以外の相談にも持っている知識で答え、段取りを前へ進めます。スキルがないことを理由に断りません。\nスキルは必要な場合だけ使います。利用できるスキルの種類・スキル名・内部の判断は、利用者への回答に書きません。\n絵文字・顔文字・装飾目的の記号は使いません。見出しや箇条書きは必要なら使います。";
 
 interface AiBinding extends MarkdownAi {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -142,8 +142,22 @@ async function executeTool(ai: AiBinding, call: ToolCall): Promise<{ content: st
   return { content: `利用できないスキルです: ${call.name}` };
 }
 
+const EMOJI_PATTERN = /(?:\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:\uFE0E|\uFE0F)?(?:\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0E|\uFE0F)?(?:\p{Emoji_Modifier})?)*|\p{Emoji_Modifier})/gu;
+const KAOMOJI_PATTERN = /\s*(?:\([^\n()]{0,24}[｡ﾟ・＾^∀▽ωДдノﾉ´｀><＞＜•;；*][^\n()]{0,24}\)|（[^\n（）]{0,24}[｡ﾟ・＾^∀▽ωДдノﾉ´｀><＞＜•;；*][^\n（）]{0,24}）)(?:[ノﾉ/])?/gu;
+const DECORATIVE_SYMBOL_PATTERN = /[☆★♡♥✦✧♪♫]+/gu;
+
 function cleanAnswer(value: string): string {
-  return value.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  return value
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/([#*0-9])\uFE0F?\u20E3/gu, "$1")
+    .replace(KAOMOJI_PATTERN, "")
+    .replace(EMOJI_PATTERN, "")
+    .replace(DECORATIVE_SYMBOL_PATTERN, "")
+    .replace(/[\uFE0E\uFE0F\u200D]/gu, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export async function runAgent(
