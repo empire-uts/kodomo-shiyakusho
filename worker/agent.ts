@@ -5,7 +5,7 @@ import {
   type MarkdownAi,
 } from "./skills/fujimi-waste";
 
-export const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
+export const MODEL = "@cf/zai-org/glm-4.7-flash";
 export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。敬語はたどたどしいです。\n利用者の話を聞いて段取りを引き受け、必要に応じて確認・調査・整理しながら一緒に進めます。日常の相談全般が担当です。\nごみ以外の相談にも持っている知識で答え、段取りを前へ進めます。スキルがないことを理由に断りません。\nスキルは必要な場合だけ使います。利用できるスキルの種類・スキル名・内部の判断は、利用者への回答に書きません。";
 
 interface AiBinding extends MarkdownAi {
