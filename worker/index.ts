@@ -167,8 +167,14 @@ async function handleSpeech(request: Request, env: Env): Promise<Response> {
         "x-content-type-options": "nosniff",
       },
     });
-  } catch {
-    return json({ error: "TTS_FAILED", message: "音声を作れませんでした。文字で確認してください。" }, 502);
+  } catch (error) {
+    return json({
+      error: "TTS_FAILED",
+      message: "音声を作れませんでした。文字で確認してください。",
+      ...(env.DIAGNOSTIC_LOGGING === "true"
+        ? { detail: error instanceof Error ? error.message : String(error) }
+        : {}),
+    }, 502);
   }
 }
 
