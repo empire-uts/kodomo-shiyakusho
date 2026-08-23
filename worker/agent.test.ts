@@ -34,6 +34,29 @@ describe("runAgent", () => {
     ]);
   });
 
+  it("supports OpenAI-compatible chat completion tool calls", async () => {
+    const run = vi.fn()
+      .mockResolvedValueOnce({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: "call-1",
+              type: "function",
+              function: { name: "search_local_waste_guide", arguments: "{\"query\":\"乾電池\"}" },
+            }],
+          },
+        }],
+      })
+      .mockResolvedValueOnce({ choices: [{ message: { content: "乾電池は有害ごみです。" } }] });
+    const reply = await runAgent({ run, toMarkdown: vi.fn() }, "乾電池は何ごみ？");
+    const firstInput = run.mock.calls[0][1] as { tools: Array<{ type?: string }> };
+    const secondInput = run.mock.calls[1][1] as { messages: Array<Record<string, unknown>> };
+    expect(firstInput.tools[0].type).toBe("function");
+    expect(secondInput.messages.at(-1)).toMatchObject({ role: "tool", tool_call_id: "call-1" });
+    expect(reply.displayText).toBe("乾電池は有害ごみです。");
+  });
+
   it("executes a selected local skill and returns the model's final answer", async () => {
     const run = vi.fn()
       .mockResolvedValueOnce({ tool_calls: [{ name: "search_local_waste_guide", arguments: { query: "乾電池" } }] })

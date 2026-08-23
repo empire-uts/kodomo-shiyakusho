@@ -13,14 +13,14 @@ interface AiBinding extends MarkdownAi {
 }
 
 interface ToolCall {
+  id?: string;
   name: string;
   arguments?: unknown;
 }
 
-interface Message {
+type Message = Record<string, unknown> & {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
-}
+};
 
 export interface ConversationMessage {
   role: "user" | "assistant";
@@ -73,6 +73,11 @@ export const TOOLS = [
   },
 ] as const;
 
+const USES_CHAT_COMPLETIONS_SCHEMA = MODEL !== "@cf/qwen/qwen3-30b-a3b-fp8";
+const MODEL_TOOLS = USES_CHAT_COMPLETIONS_SCHEMA
+  ? TOOLS.map((tool) => ({ type: "function", function: tool }))
+  : TOOLS;
+
 function modelText(result: unknown): string {
   if (typeof result !== "object" || result === null) return "";
   if ("response" in result && typeof (result as { response?: unknown }).response === "string") {
@@ -87,12 +92,34 @@ function modelText(result: unknown): string {
 }
 
 function toolCalls(result: unknown): ToolCall[] {
-  if (typeof result !== "object" || result === null || !("tool_calls" in result)) return [];
-  const calls = (result as { tool_calls?: unknown }).tool_calls;
-  if (!Array.isArray(calls)) return [];
-  return calls.flatMap((call) => {
-    if (typeof call !== "object" || call === null || !("name" in call) || typeof call.name !== "string") return [];
-    return [{ name: call.name, arguments: "arguments" in call ? call.arguments : undefined }];
+  if (typeof result !== "object" || result === null) return [];
+  if ("tool_calls" in result && Array.isArray(result.tool_calls)) {
+    return result.tool_calls.flatMap((call) => {
+      if (typeof call !== "object" || call === null || !("name" in call) || typeof call.name !== "string") return [];
+      return [{ name: call.name, arguments: "arguments" in call ? call.arguments : undefined }];
+    });
+  }
+  const choices = "choices" in result ? result.choices : undefined;
+  if (!Array.isArray(choices)) return [];
+  const first = choices[0] as { message?: { tool_calls?: unknown } } | undefined;
+  if (!Array.isArray(first?.message?.tool_calls)) return [];
+  return first.message.tool_calls.flatMap((call) => {
+    if (
+      typeof call !== "object"
+      || call === null
+      || !("id" in call)
+      || typeof call.id !== "string"
+      || !("function" in call)
+      || typeof call.function !== "object"
+      || call.function === null
+      || !("name" in call.function)
+      || typeof call.function.name !== "string"
+    ) return [];
+    return [{
+      id: call.id,
+      name: call.function.name,
+      arguments: "arguments" in call.function ? call.function.arguments : undefined,
+    }];
   });
 }
 
@@ -140,10 +167,10 @@ export async function runAgent(
     const canCallTool = toolRound < 2;
     const result = await ai.run(MODEL, {
       messages,
-      ...(canCallTool ? { tools: TOOLS } : {}),
+      ...(canCallTool ? { tools: MODEL_TOOLS } : {}),
       temperature: 0.7,
       top_p: 0.9,
-      repetition_penalty: 1.05,
+      ...(!USES_CHAT_COMPLETIONS_SCHEMA ? { repetition_penalty: 1.05 } : {}),
       stream: false,
     });
     const call = canCallTool ? toolCalls(result)[0] : undefined;
@@ -161,10 +188,28 @@ export async function runAgent(
     const toolResult = await executeTool(ai, call);
     toolsUsed.push(call.name);
     sourceUrl = toolResult.sourceUrl ?? sourceUrl;
-    messages.push(
-      { role: "assistant", content: JSON.stringify(call) },
-      { role: "tool", content: JSON.stringify(toolResult) },
-    );
+    if (call.id) {
+      const argumentsJson = typeof call.arguments === "string"
+        ? call.arguments
+        : JSON.stringify(call.arguments ?? {});
+      messages.push(
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [{
+            id: call.id,
+            type: "function",
+            function: { name: call.name, arguments: argumentsJson },
+          }],
+        },
+        { role: "tool", tool_call_id: call.id, content: JSON.stringify(toolResult) },
+      );
+    } else {
+      messages.push(
+        { role: "assistant", content: JSON.stringify(call) },
+        { role: "tool", content: JSON.stringify(toolResult) },
+      );
+    }
   }
 
   throw new Error("LLMの回答処理が完了しませんでした。");
