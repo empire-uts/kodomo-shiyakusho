@@ -132,8 +132,11 @@ async function loadOfficialDictionary(ai: MarkdownAi): Promise<string> {
 export async function searchOfficialWasteInfo(ai: MarkdownAi, query: string): Promise<{ content: string; sourceUrl: string }> {
   try {
     const markdown = await loadOfficialDictionary(ai);
+    const match = searchText(markdown, query);
     return {
-      content: searchText(markdown, query),
+      content: match.startsWith("該当箇所を見つけられませんでした")
+        ? "富士見市公式の分別辞典を調べましたが、該当する分別区分を確認できませんでした。区分を推測せず、『調べたけどわかりません』と答え、富士見市環境課（049-252-7100）への確認を案内してください。"
+        : match,
       sourceUrl: OFFICIAL_DICTIONARY_URL,
     };
   } catch (error) {

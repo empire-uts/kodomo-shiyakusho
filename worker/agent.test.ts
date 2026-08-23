@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { runAgent, SYSTEM_PROMPT } from "./agent";
-import { getLocalWasteSchedule, searchLocalWasteGuide } from "./skills/fujimi-waste";
+import { getLocalWasteSchedule, searchLocalWasteGuide, searchOfficialWasteInfo } from "./skills/fujimi-waste";
 
 describe("runAgent", () => {
   it("passes the user input unchanged with only the approved persona prompt", async () => {
@@ -34,5 +34,17 @@ describe("fujimi waste skills", () => {
 
   it("searches the compact repository reference", () => {
     expect(searchLocalWasteGuide("アイロンは何ごみ？").content).toContain("アイロン: 不燃ごみ");
+  });
+
+  it("tells the model not to guess when the official dictionary has no match", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array([1]), {
+      headers: { "content-type": "application/pdf", "content-length": "1" },
+    })));
+    const result = await searchOfficialWasteInfo({
+      toMarkdown: vi.fn().mockResolvedValue({ format: "markdown", data: "# ごみ分別辞典\n別の品目: 可燃ごみ" }),
+    }, "アコーディオン");
+    expect(result.content).toContain("区分を推測せず");
+    expect(result.content).toContain("調べたけどわかりません");
+    vi.unstubAllGlobals();
   });
 });
