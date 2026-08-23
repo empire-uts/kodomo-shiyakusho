@@ -1,5 +1,8 @@
 import { encodeAudioBase64 } from "./audio";
 import { runAgent, type ConversationMessage } from "./agent";
+import type { CallRoom } from "./call-room";
+
+export { CallRoom } from "./call-room";
 
 interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -8,12 +11,25 @@ interface AiBinding {
 
 interface Env {
   AI?: AiBinding;
+  CALL_ROOM: DurableObjectNamespace<CallRoom>;
   AI_ENABLED?: string;
   DEMO_AREA?: string;
   DIAGNOSTIC_LOGGING?: string;
   LLM_ENABLED?: string;
   TTS_BASE_URL?: string;
   TTS_SHARED_SECRET?: string;
+}
+
+function handleCallSignal(request: Request, env: Env): Promise<Response> | Response {
+  if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+    return json({ error: "UPGRADE_REQUIRED", message: "WebSocket接続が必要です。" }, 426);
+  }
+  const url = new URL(request.url);
+  const room = url.searchParams.get("room")?.toUpperCase() ?? "";
+  if (!/^[A-Z0-9]{4,12}$/.test(room)) {
+    return json({ error: "INVALID_ROOM", message: "通信番号を4〜12文字で入力してください。" }, 400);
+  }
+  return env.CALL_ROOM.getByName(room, { locationHint: "apac-ne" }).fetch(request);
 }
 
 const JSON_HEADERS = {
@@ -233,6 +249,7 @@ export default {
     if (url.pathname === "/api/chat") return handleChat(request, env);
     if (url.pathname === "/api/transcribe") return handleTranscribe(request, env);
     if (url.pathname === "/api/speech") return handleSpeech(request, env);
+    if (url.pathname === "/api/call/signal") return handleCallSignal(request, env);
     if (url.pathname.startsWith("/api/")) return json({ error: "NOT_FOUND", message: "この機能はありません。" }, 404);
     return new Response(null, { status: 404 });
   },

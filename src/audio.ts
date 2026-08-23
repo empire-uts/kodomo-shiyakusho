@@ -98,6 +98,12 @@ export async function playAudioBlob(blob: Blob): Promise<void> {
   });
 }
 
+export function stopAnswerAudio(): void {
+  activeAnswer?.stop();
+  activeAnswer = null;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
 export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   if (!("speechSynthesis" in window)) return false;
   if (!speechSynthesisPrimed) await primeSpeechSynthesis();

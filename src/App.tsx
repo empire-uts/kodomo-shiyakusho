@@ -12,7 +12,8 @@ import {
   type AssistantReply,
   type ConversationMessage,
 } from "./api";
-import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, unlockAudio } from "./audio";
+import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, stopAnswerAudio, unlockAudio } from "./audio";
+import { useP2PCall } from "./useP2PCall";
 
 type AppState = "idle" | "listening" | "sending" | "answer" | "error";
 type MicrophonePermission = "unknown" | "prompt" | "requesting" | "granted" | "denied";
@@ -116,6 +117,7 @@ function App() {
   const recordingTimerRef = useRef<number | null>(null);
   const historyRef = useRef<ConversationMessage[]>(conversationHistory);
   const sessionIdRef = useRef(loadSessionId());
+  const speechGenerationRef = useRef(0);
   const scrollPaperRef = useRef<HTMLDivElement | null>(null);
   const scrollDragRef = useRef<ScrollDrag | null>(null);
 
@@ -181,6 +183,17 @@ function App() {
     stopNoiseRef.current = null;
   };
 
+  const call = useP2PCall({
+    disabled: state === "listening" || state === "sending" || microphonePermission === "requesting",
+    onBeforeCall: async () => {
+      stopRadioNoise();
+      speechGenerationRef.current += 1;
+      stopAnswerAudio();
+      setPlaybackNote("");
+      await unlockAudio();
+    },
+  });
+
   const beginSending = (stage: SendingStage) => {
     setSendingStage(stage);
     setState("sending");
@@ -189,10 +202,13 @@ function App() {
   };
 
   const speakReply = async (nextReply: AssistantReply) => {
+    const generation = speechGenerationRef.current + 1;
+    speechGenerationRef.current = generation;
     setPlaybackNote("");
     if (!deviceTtsOnly) {
       try {
         const audio = await requestSpeech(nextReply.speechText);
+        if (speechGenerationRef.current !== generation) return;
         if (audio) {
           await playAudioBlob(audio);
           return;
@@ -202,9 +218,12 @@ function App() {
       }
     }
 
+    if (speechGenerationRef.current !== generation) return;
     if (!await speakWithJapaneseVoice(nextReply.speechText)) {
+      if (speechGenerationRef.current !== generation) return;
       setPlaybackNote("音声を再生できません。文字で確認してください。");
     } else {
+      if (speechGenerationRef.current !== generation) return;
       setPlaybackNote("端末の日本語音声で読み上げています。");
     }
   };
@@ -487,6 +506,43 @@ function App() {
       {diagnosticLogging && (
         <p className="dev-log-notice" role="status">DEV版：発話の文字起こしと回答をログ記録中</p>
       )}
+      <section className={`call-console call-${call.status}`} aria-label="端末間の音声通話">
+        <button
+          className={`call-button call-receive${call.incoming ? " is-ringing" : ""}`}
+          type="button"
+          onClick={call.onReceive}
+          disabled={call.receiveDisabled}
+        >
+          {call.receiveLabel}
+        </button>
+
+        <label className="call-room">
+          <span>通信番号</span>
+          <input
+            type="text"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={12}
+            placeholder="例 1234"
+            value={call.room}
+            onChange={(event) => call.setRoom(event.target.value)}
+            disabled={call.active}
+          />
+        </label>
+
+        <button
+          className="call-button call-send"
+          type="button"
+          onClick={call.onSend}
+          disabled={call.sendDisabled}
+        >
+          {call.sendLabel}
+        </button>
+
+        <p className="call-message" role="status" aria-live="assertive">{call.message}</p>
+      </section>
       <header className="topbar">
         <div>
           <p className="audience-label">高齢者向け音声案内</p>
@@ -519,7 +575,7 @@ function App() {
             className="talk-button"
             type="button"
             onClick={handleMainButton}
-            disabled={state === "sending" || microphonePermission === "requesting"}
+            disabled={state === "sending" || microphonePermission === "requesting" || call.active}
             aria-label={state === "listening" ? "録音を止めて送る" : "録音を始める"}
           >
             <span className="talk-icon" aria-hidden="true">{state === "listening" ? "■" : "●"}</span>
@@ -527,7 +583,7 @@ function App() {
           </button>
 
           {state === "answer" && reply ? (
-            <button className="radio-action radio-action-call" type="button" onClick={() => void startRecording()}>
+            <button className="radio-action radio-action-call" type="button" onClick={() => void startRecording()} disabled={call.active}>
               発信
             </button>
           ) : <span className="radio-action-placeholder" aria-hidden="true" />}
@@ -609,7 +665,7 @@ function App() {
         <p>質問を選んで、こども職員の返事を試せます。</p>
         <div className="example-grid">
           {examples.map((example) => (
-            <button key={example} type="button" onClick={() => handleExample(example)} disabled={state === "sending"}>
+            <button key={example} type="button" onClick={() => handleExample(example)} disabled={state === "sending" || call.active}>
               {example}
             </button>
           ))}
