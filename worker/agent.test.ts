@@ -7,6 +7,8 @@ describe("runAgent", () => {
     const run = vi.fn().mockResolvedValue({ response: "はい、います！" });
     const reply = await runAgent({ run, toMarkdown: vi.fn() }, "  いま、いる？  ");
     const input = run.mock.calls[0][1] as { messages: Array<{ role: string; content: string }> };
+    expect(SYSTEM_PROMPT).toContain("段取りを引き受け");
+    expect(SYSTEM_PROMPT).toContain("話題や回答範囲を限定しません");
     expect(input.messages).toEqual([
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: "  いま、いる？  " },

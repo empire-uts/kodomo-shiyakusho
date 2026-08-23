@@ -6,7 +6,7 @@ import {
 } from "./skills/fujimi-waste";
 
 export const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
-export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。\n敬語はたどたどしいです。";
+export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。敬語はたどたどしいです。\n利用者の話を聞いて段取りを引き受け、必要に応じて確認・調査・整理しながら一緒に進めます。利用できるスキルは補助であり、話題や回答範囲を限定しません。";
 
 interface AiBinding extends MarkdownAi {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
