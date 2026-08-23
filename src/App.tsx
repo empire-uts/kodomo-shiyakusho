@@ -41,6 +41,7 @@ const stateCopy: Record<AppState, { eyebrow: string; title: string; hint: string
 
 function App() {
   const diagnosticLogging = import.meta.env.VITE_DIAGNOSTIC_LOGGING === "true";
+  const deviceTtsOnly = import.meta.env.VITE_DEVICE_TTS === "true";
   const [state, setState] = useState<AppState>("idle");
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -74,20 +75,22 @@ function App() {
 
   const speakReply = async (nextReply: AssistantReply) => {
     setPlaybackNote("");
-    try {
-      const audio = await requestSpeech(nextReply.speechText);
-      if (audio) {
-        await playAudioBlob(audio);
-        return;
+    if (!deviceTtsOnly) {
+      try {
+        const audio = await requestSpeech(nextReply.speechText);
+        if (audio) {
+          await playAudioBlob(audio);
+          return;
+        }
+      } catch {
+        // The browser voice below is an intentional fallback.
       }
-    } catch {
-      // The browser voice below is an intentional last-resort fallback.
     }
 
     if (!await speakWithJapaneseVoice(nextReply.speechText)) {
       setPlaybackNote("音声を再生できません。文字で確認してください。");
     } else {
-      setPlaybackNote("仮の端末音声で読み上げています。");
+      setPlaybackNote("端末の日本語音声で読み上げています。");
     }
   };
 

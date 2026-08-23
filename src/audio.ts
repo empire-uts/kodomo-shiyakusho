@@ -1,5 +1,6 @@
 let audioContext: AudioContext | null = null;
 let activeAnswer: AudioBufferSourceNode | null = null;
+let speechSynthesisPrimed = false;
 
 function context(): AudioContext {
   audioContext ??= new AudioContext();
@@ -16,6 +17,18 @@ export async function unlockAudio(): Promise<void> {
   oscillator.connect(gain).connect(ctx.destination);
   oscillator.start();
   oscillator.stop(ctx.currentTime + 0.02);
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.resume();
+    if (!speechSynthesisPrimed) {
+      const primer = new SpeechSynthesisUtterance("\u2060");
+      primer.volume = 0.01;
+      primer.rate = 10;
+      window.speechSynthesis.speak(primer);
+      speechSynthesisPrimed = true;
+    }
+  }
 }
 
 export function startRadioNoise(): () => void {
@@ -80,11 +93,12 @@ export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   if (!voice) return false;
 
   window.speechSynthesis.cancel();
+  window.speechSynthesis.resume();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ja-JP";
   utterance.voice = voice;
-  utterance.rate = 0.92;
-  utterance.pitch = 1.18;
+  utterance.rate = 0.9;
+  utterance.pitch = 1.3;
   return new Promise<boolean>((resolve) => {
     utterance.addEventListener("start", () => resolve(true), { once: true });
     utterance.addEventListener("error", () => resolve(false), { once: true });

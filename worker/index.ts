@@ -30,24 +30,6 @@ function methodNotAllowed(): Response {
   return json({ error: "METHOD_NOT_ALLOWED", message: "この操作は使えません。" }, 405);
 }
 
-function aiAudioBody(result: unknown): BodyInit {
-  if (result instanceof ReadableStream || result instanceof ArrayBuffer || ArrayBuffer.isView(result)) {
-    return result as BodyInit;
-  }
-  const encoded = typeof result === "object" && result !== null && "audio" in result
-    ? (result as { audio: unknown }).audio
-    : result;
-  if (typeof encoded === "string") {
-    try {
-      const binary = atob(encoded);
-      return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    } catch {
-      return encoded;
-    }
-  }
-  throw new Error("Workers AI returned an unsupported audio body");
-}
-
 async function readJson<T>(request: Request, maxBytes = 2_048): Promise<T> {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > maxBytes) throw new Error("入力が長すぎます。");
@@ -124,9 +106,7 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
 
 async function handleSpeech(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return methodNotAllowed();
-  const customTtsEnabled = Boolean(env.TTS_BASE_URL && env.TTS_SHARED_SECRET);
-  const workersAiTtsEnabled = env.AI_ENABLED === "true" && Boolean(env.AI);
-  if (!customTtsEnabled && !workersAiTtsEnabled) {
+  if (!env.TTS_BASE_URL || !env.TTS_SHARED_SECRET) {
     return json({ error: "TTS_DISABLED", message: "音声合成はまだ接続準備中です。" }, 503);
   }
 
@@ -136,40 +116,23 @@ async function handleSpeech(request: Request, env: Env): Promise<Response> {
       return json({ error: "TEXT_REQUIRED", message: "読み上げる文がありません。" }, 400);
     }
     const text = body.speechText.trim().slice(0, 300);
-    if (customTtsEnabled) {
-      const baseUrl = new URL(env.TTS_BASE_URL!);
-      if (baseUrl.protocol !== "https:") throw new Error("TTS endpoint must use HTTPS");
-      const response = await fetch(new URL("/synthesize", baseUrl), {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${env.TTS_SHARED_SECRET!}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-        signal: AbortSignal.timeout(15_000),
-      });
-      const contentType = response.headers.get("content-type") ?? "";
-      if (!response.ok || !contentType.startsWith("audio/")) throw new Error("TTS request failed");
-      return new Response(response.body, {
-        headers: {
-          "cache-control": "private, no-store",
-          "content-type": contentType,
-          "x-content-type-options": "nosniff",
-        },
-      });
-    }
-
-    const requestedLanguage = env.DIAGNOSTIC_LOGGING === "true"
-      ? new URL(request.url).searchParams.get("lang")
-      : null;
-    const language = requestedLanguage && /^[a-z]{2}$/i.test(requestedLanguage)
-      ? requestedLanguage
-      : "jp";
-    const audio = await env.AI!.run("@cf/myshell-ai/melotts", { prompt: text, lang: language });
-    return new Response(aiAudioBody(audio), {
+    const baseUrl = new URL(env.TTS_BASE_URL);
+    if (baseUrl.protocol !== "https:") throw new Error("TTS endpoint must use HTTPS");
+    const response = await fetch(new URL("/synthesize", baseUrl), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.TTS_SHARED_SECRET}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!response.ok || !contentType.startsWith("audio/")) throw new Error("TTS request failed");
+    return new Response(response.body, {
       headers: {
         "cache-control": "private, no-store",
-        "content-type": "audio/mpeg",
+        "content-type": contentType,
         "x-content-type-options": "nosniff",
       },
     });
@@ -192,7 +155,7 @@ export default {
         ok: true,
         area: env.DEMO_AREA ?? "未設定",
         aiEnabled: env.AI_ENABLED === "true",
-        ttsEnabled: Boolean(env.TTS_BASE_URL && env.TTS_SHARED_SECRET) || (env.AI_ENABLED === "true" && Boolean(env.AI)),
+        ttsEnabled: Boolean(env.TTS_BASE_URL && env.TTS_SHARED_SECRET),
       });
     }
     if (url.pathname === "/api/chat") return handleChat(request, env);
