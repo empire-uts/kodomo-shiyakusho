@@ -341,7 +341,7 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
   const receiveLabel = status === "incoming"
     ? "受信"
     : status === "waiting"
-      ? "受信停止"
+      ? "中止"
       : status === "calling" || status === "connecting" || status === "connected"
         ? "通話終了"
         : "受信";
