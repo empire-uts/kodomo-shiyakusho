@@ -10,8 +10,6 @@ interface UseP2PCallOptions {
 interface UseP2PCallResult {
   status: CallStatus;
   message: string;
-  room: string;
-  setRoom: (value: string) => void;
   receiveLabel: string;
   sendLabel: string;
   receiveDisabled: boolean;
@@ -29,18 +27,9 @@ type SignalMessage =
   | { type: "ice"; candidate: RTCIceCandidateInit }
   | { type: "error"; code: string; message: string };
 
-const ROOM_STORAGE_KEY = "kodomo-shiyakusho:call-room";
 const CALL_TIMEOUT_MS = 30_000;
 const DISCONNECT_GRACE_MS = 6_000;
 const ACTIVE_STATUSES = new Set<CallStatus>(["waiting", "calling", "incoming", "connecting", "connected"]);
-
-function loadRoom(): string {
-  try {
-    return (localStorage.getItem(ROOM_STORAGE_KEY) ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-  } catch {
-    return "";
-  }
-}
 
 function microphoneError(error: unknown): string {
   if (error instanceof DOMException && error.name === "NotAllowedError") {
@@ -57,10 +46,8 @@ function microphoneError(error: unknown): string {
 
 export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2PCallResult {
   const [status, setStatus] = useState<CallStatus>("idle");
-  const [message, setMessage] = useState("同じ通信番号を2台に入力してください。");
-  const [room, setRoomState] = useState(loadRoom);
+  const [message, setMessage] = useState("受信か発信を押してください。");
   const statusRef = useRef<CallStatus>(status);
-  const roomRef = useRef(room);
   const socketRef = useRef<WebSocket | null>(null);
   const socketPromiseRef = useRef<Promise<WebSocket> | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
@@ -228,7 +215,7 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const clientId = crypto.randomUUID();
-    const url = `${protocol}//${window.location.host}/api/call/signal?room=${encodeURIComponent(roomRef.current)}&client=${encodeURIComponent(clientId)}`;
+    const url = `${protocol}//${window.location.host}/api/call/signal?client=${encodeURIComponent(clientId)}`;
     intentionalCloseRef.current = false;
     socketPromiseRef.current = new Promise<WebSocket>((resolve, reject) => {
       const socket = new WebSocket(url);
@@ -268,21 +255,13 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
     return socketPromiseRef.current;
   };
 
-  const validateRoom = (): boolean => {
-    if (!/^[A-Z0-9]{4,12}$/.test(roomRef.current)) {
-      updateStatus("error", "通信番号を英数字4〜12文字で入力してください。");
-      return false;
-    }
-    return true;
-  };
-
   const prepare = async () => {
     await onBeforeCallRef.current();
     await connectSocket();
   };
 
   const startWaiting = async () => {
-    if (disabled || !validateRoom()) return;
+    if (disabled) return;
     try {
       await prepare();
       sendSignal({ type: "ready" });
@@ -293,7 +272,7 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
   };
 
   const placeCall = async () => {
-    if (disabled || !validateRoom()) return;
+    if (disabled) return;
     try {
       await onBeforeCallRef.current();
       await createPeer();
@@ -349,17 +328,6 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
     }
   };
 
-  const setRoom = (value: string) => {
-    const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-    roomRef.current = normalized;
-    setRoomState(normalized);
-    try {
-      localStorage.setItem(ROOM_STORAGE_KEY, normalized);
-    } catch {
-      // Calling still works when browser storage is unavailable.
-    }
-  };
-
   useEffect(() => () => {
     if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     if (disconnectTimerRef.current !== null) window.clearTimeout(disconnectTimerRef.current);
@@ -378,7 +346,7 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
         ? "通話終了"
         : "受信";
   const sendLabel = status === "calling"
-    ? "キャンセル"
+    ? "中止"
     : status === "incoming"
       ? "拒否"
       : status === "connecting" || status === "connected"
@@ -388,12 +356,10 @@ export function useP2PCall({ disabled, onBeforeCall }: UseP2PCallOptions): UseP2
   return {
     status,
     message,
-    room,
-    setRoom,
     receiveLabel,
     sendLabel,
-    receiveDisabled: disabled && !active,
-    sendDisabled: disabled && !active,
+    receiveDisabled: (disabled && !active) || status === "calling",
+    sendDisabled: (disabled && !active) || status === "waiting",
     active,
     incoming: status === "incoming",
     onReceive,

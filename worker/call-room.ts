@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { isClientId, isRoomCode, parseClientSignal, type ClientSignal } from "./call-protocol";
+import { isClientId, parseClientSignal, type ClientSignal } from "./call-protocol";
 
 interface CallRoomEnv {
   DIAGNOSTIC_LOGGING?: string;
@@ -41,13 +41,12 @@ export class CallRoom extends DurableObject<CallRoomEnv> {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const room = url.searchParams.get("room")?.toUpperCase() ?? "";
     const clientId = url.searchParams.get("client") ?? "";
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("WebSocket upgrade required", { status: 426 });
     }
-    if (!isRoomCode(room) || !isClientId(clientId)) {
-      return new Response("Invalid room or client", { status: 400 });
+    if (!isClientId(clientId)) {
+      return new Response("Invalid client", { status: 400 });
     }
 
     const pair = new WebSocketPair();
@@ -65,7 +64,7 @@ export class CallRoom extends DurableObject<CallRoomEnv> {
     server.serializeAttachment({ clientId, ready: false } satisfies SocketAttachment);
     send(server, { type: "joined", peers: connected.length + 1 });
     if (this.env.DIAGNOSTIC_LOGGING === "true") {
-      console.log(JSON.stringify({ event: "call_signal_join", room, peers: connected.length + 1 }));
+      console.log(JSON.stringify({ event: "call_signal_join", peers: connected.length + 1 }));
     }
     return new Response(null, { status: 101, webSocket: client });
   }

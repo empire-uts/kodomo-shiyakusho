@@ -21,10 +21,6 @@ export type ClientSignal =
 
 const SIMPLE_SIGNAL_TYPES = new Set<ClientSignalType>(["ready", "call", "accept", "hangup", "cancel"]);
 
-export function isRoomCode(value: string): boolean {
-  return /^[A-Z0-9]{4,12}$/.test(value);
-}
-
 export function isClientId(value: string): boolean {
   return /^[A-Za-z0-9-]{8,64}$/.test(value);
 }

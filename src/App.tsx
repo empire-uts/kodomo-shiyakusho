@@ -506,43 +506,6 @@ function App() {
       {diagnosticLogging && (
         <p className="dev-log-notice" role="status">DEV版：発話の文字起こしと回答をログ記録中</p>
       )}
-      <section className={`call-console call-${call.status}`} aria-label="端末間の音声通話">
-        <button
-          className={`call-button call-receive${call.incoming ? " is-ringing" : ""}`}
-          type="button"
-          onClick={call.onReceive}
-          disabled={call.receiveDisabled}
-        >
-          {call.receiveLabel}
-        </button>
-
-        <label className="call-room">
-          <span>通信番号</span>
-          <input
-            type="text"
-            inputMode="text"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={12}
-            placeholder="例 1234"
-            value={call.room}
-            onChange={(event) => call.setRoom(event.target.value)}
-            disabled={call.active}
-          />
-        </label>
-
-        <button
-          className="call-button call-send"
-          type="button"
-          onClick={call.onSend}
-          disabled={call.sendDisabled}
-        >
-          {call.sendLabel}
-        </button>
-
-        <p className="call-message" role="status" aria-live="assertive">{call.message}</p>
-      </section>
       <header className="topbar">
         <div>
           <p className="audience-label">高齢者向け音声案内</p>
@@ -551,7 +514,33 @@ function App() {
         <div className="area-chip" aria-label="設定地域">富士見市・鶴瀬西</div>
       </header>
 
-      <section className={`radio-panel state-${state}`} aria-labelledby="status-title">
+      <section
+        className={`radio-panel state-${state} call-mode-${call.status}${call.active ? " call-is-active" : ""}`}
+        aria-labelledby="status-title"
+      >
+        <div className="transceiver-call-controls" aria-label="端末間の音声通話">
+          <button
+            className={`call-button call-receive${call.incoming ? " is-ringing" : ""}`}
+            type="button"
+            onClick={call.onReceive}
+            disabled={call.receiveDisabled}
+          >
+            {call.receiveLabel}
+          </button>
+
+          <p className="call-message" role="status" aria-live="assertive">{call.message}</p>
+
+          <button
+            className="call-button call-send"
+            type="button"
+            onClick={call.onSend}
+            disabled={call.sendDisabled}
+          >
+            {call.sendLabel}
+          </button>
+        </div>
+
+        <div className="radio-main">
         <div className="speaker-grid" aria-hidden="true">
           {Array.from({ length: 18 }, (_, index) => <span key={index} />)}
         </div>
@@ -603,6 +592,7 @@ function App() {
             <button type="button" onClick={() => setState("idle")}>もう一度やる</button>
           </div>
         )}
+        </div>
       </section>
 
       <section className="desk-panel" aria-labelledby="history-title">

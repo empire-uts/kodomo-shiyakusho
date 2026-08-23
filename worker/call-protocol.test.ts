@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isClientId, isRoomCode, parseClientSignal } from "./call-protocol";
+import { isClientId, parseClientSignal } from "./call-protocol";
 
 describe("call signaling protocol", () => {
-  it("accepts normalized room codes and client ids", () => {
-    expect(isRoomCode("ROOM42")).toBe(true);
-    expect(isRoomCode("bad room")).toBe(false);
+  it("accepts valid client ids", () => {
     expect(isClientId("12345678-abcd")).toBe(true);
     expect(isClientId("short")).toBe(false);
   });

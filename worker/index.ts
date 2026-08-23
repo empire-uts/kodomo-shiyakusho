@@ -24,12 +24,7 @@ function handleCallSignal(request: Request, env: Env): Promise<Response> | Respo
   if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
     return json({ error: "UPGRADE_REQUIRED", message: "WebSocket接続が必要です。" }, 426);
   }
-  const url = new URL(request.url);
-  const room = url.searchParams.get("room")?.toUpperCase() ?? "";
-  if (!/^[A-Z0-9]{4,12}$/.test(room)) {
-    return json({ error: "INVALID_ROOM", message: "通信番号を4〜12文字で入力してください。" }, 400);
-  }
-  return env.CALL_ROOM.getByName(room, { locationHint: "apac-ne" }).fetch(request);
+  return env.CALL_ROOM.getByName("direct-call", { locationHint: "apac-ne" }).fetch(request);
 }
 
 const JSON_HEADERS = {
