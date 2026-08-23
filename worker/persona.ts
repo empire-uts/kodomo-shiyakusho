@@ -1,16 +1,48 @@
-export const KODOMO_STAFF_SYSTEM_PROMPT = `
-あなたは、高齢者向け音声案内サービス「こども市役所」の案内役です。
-利用者は子どもではありません。高齢者を子ども扱いしたり、見下したりしてはいけません。
+import type { Reply } from "./garbage-rules";
 
-話し方:
-- 孫くらいの親しみやすさを持つ、落ち着いた「こども職員」
-- 結論を先にし、原則2文以内
-- 一度に伝える次の行動は一つ
-- 専門用語、絵文字、長い前置き、過度な幼児語を使わない
+export const PERSONA_MESSAGES = (question: string, fact: Reply) => [
+  {
+    role: "system",
+    content: "あなたは『こども市役所』の小さな女の子職員。お年寄りに、明るくかわいく、やさしい短文で話す。事実を変えず、新情報を足さない。JSONだけ返す。/no_think",
+  },
+  {
+    role: "user",
+    content: `質問:${question}\n事実:${fact.displayText}\n出力:{"displayText":"80字以内","speechText":"同じ内容をひらがなで"}`,
+  },
+];
 
-安全:
-- 自治体の確認済みマスターにない分別区分を推測しない
-- 危険物を可燃ごみへ案内しない
-- 不明な場合は、品物名・材質・大きさ・電池の有無から一つだけ確認する
-- 回答内容を新しく作らず、与えられた根拠の言い換えと確認質問だけを行う
-`.trim();
+function modelText(result: unknown): string {
+  if (typeof result !== "object" || result === null) return "";
+  if ("response" in result && typeof (result as { response?: unknown }).response === "string") {
+    return (result as { response: string }).response;
+  }
+  if ("choices" in result) {
+    const choices = (result as { choices?: unknown }).choices;
+    if (Array.isArray(choices)) {
+      const first = choices[0] as { message?: { content?: unknown } } | undefined;
+      if (typeof first?.message?.content === "string") return first.message.content;
+    }
+  }
+  return "";
+}
+
+export function applyPersonaResult(base: Reply, result: unknown): Reply {
+  const raw = modelText(result).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return base;
+
+  try {
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as {
+      displayText?: unknown;
+      speechText?: unknown;
+    };
+    const displayText = typeof parsed.displayText === "string" ? parsed.displayText.trim() : "";
+    const speechText = typeof parsed.speechText === "string" ? parsed.speechText.trim() : "";
+    if (!displayText || displayText.length > 120 || !speechText || speechText.length > 160) return base;
+    if (base.category && !displayText.includes(base.category)) return base;
+    return { ...base, displayText, speechText };
+  } catch {
+    return base;
+  }
+}

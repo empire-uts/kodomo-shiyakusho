@@ -1,5 +1,6 @@
 import { answerQuestion } from "./garbage-rules";
 import { encodeAudioBase64 } from "./audio";
+import { applyPersonaResult, PERSONA_MESSAGES } from "./persona";
 
 interface AiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -10,6 +11,7 @@ interface Env {
   AI_ENABLED?: string;
   DEMO_AREA?: string;
   DIAGNOSTIC_LOGGING?: string;
+  LLM_ENABLED?: string;
   TTS_BASE_URL?: string;
   TTS_SHARED_SECRET?: string;
 }
@@ -44,7 +46,24 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       return json({ error: "INVALID_MESSAGE", message: "質問を話してください。" }, 400);
     }
     const message = body.message.trim().slice(0, 300);
-    const reply = answerQuestion(message);
+    const baseReply = answerQuestion(message);
+    let reply = baseReply;
+    if (env.LLM_ENABLED === "true" && env.AI) {
+      try {
+        const result = await env.AI.run("@cf/qwen/qwen3-30b-a3b-fp8", {
+          messages: PERSONA_MESSAGES(message, baseReply),
+          max_tokens: 120,
+          temperature: 0.75,
+          top_p: 0.85,
+          repetition_penalty: 1.08,
+          response_format: { type: "json_object" },
+          stream: false,
+        });
+        reply = applyPersonaResult(baseReply, result);
+      } catch {
+        reply = baseReply;
+      }
+    }
     if (env.DIAGNOSTIC_LOGGING === "true" && body.inputSource === "voice") {
       console.log({
         event: "voice_interaction",
@@ -155,6 +174,7 @@ export default {
         ok: true,
         area: env.DEMO_AREA ?? "未設定",
         aiEnabled: env.AI_ENABLED === "true",
+        llmEnabled: env.LLM_ENABLED === "true",
         ttsEnabled: Boolean(env.TTS_BASE_URL && env.TTS_SHARED_SECRET),
       });
     }
