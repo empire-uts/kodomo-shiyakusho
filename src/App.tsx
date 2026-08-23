@@ -16,6 +16,7 @@ import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, unlockAudio } f
 
 type AppState = "idle" | "listening" | "sending" | "answer" | "error";
 type MicrophonePermission = "unknown" | "prompt" | "requesting" | "granted" | "denied";
+type SendingStage = "transcribing" | "thinking";
 
 type ScrollStyle = CSSProperties & {
   "--scroll-roll": string;
@@ -107,6 +108,7 @@ function App() {
   const [isDraggingScroll, setIsDraggingScroll] = useState(false);
   const [microphonePermission, setMicrophonePermission] = useState<MicrophonePermission>("unknown");
   const [permissionMessage, setPermissionMessage] = useState("");
+  const [sendingStage, setSendingStage] = useState<SendingStage>("thinking");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -179,7 +181,8 @@ function App() {
     stopNoiseRef.current = null;
   };
 
-  const beginSending = () => {
+  const beginSending = (stage: SendingStage) => {
+    setSendingStage(stage);
     setState("sending");
     stopRadioNoise();
     stopNoiseRef.current = startRadioNoise();
@@ -235,7 +238,7 @@ function App() {
   };
 
   const sendQuestion = async (message: string) => {
-    beginSending();
+    beginSending("thinking");
     try {
       const nextReply = await askQuestion(message, "example", {
         history: historyRef.current,
@@ -254,6 +257,7 @@ function App() {
         throw new Error("声が短すぎたようです。もう一度、ゆっくり話してください。");
       }
       const transcript = await transcribeAudio(blob);
+      setSendingStage("thinking");
       const nextReply = await askQuestion(transcript, "voice", {
         history: historyRef.current,
         sessionId: sessionIdRef.current,
@@ -332,12 +336,18 @@ function App() {
         recorderRef.current = null;
         void sendRecording(blob);
       });
+      recorder.addEventListener("error", () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        showError("録音を完了できませんでした。もう一度試してください。");
+      });
 
       recorder.start(500);
       setState("listening");
       recordingTimerRef.current = window.setTimeout(() => {
         if (recorder.state === "recording") {
-          beginSending();
+          beginSending("transcribing");
           recorder.stop();
         }
       }, 30_000);
@@ -355,20 +365,23 @@ function App() {
     }
   };
 
-  const stopRecording = async () => {
-    try {
-      await unlockAudio();
-    } catch {
+  const stopRecording = () => {
+    void unlockAudio().catch(() => {
       // The visible replay control remains available if autoplay is blocked.
-    }
+    });
     if (recordingTimerRef.current) window.clearTimeout(recordingTimerRef.current);
-    beginSending();
-    recorderRef.current?.stop();
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      showError("録音を完了できませんでした。もう一度試してください。");
+      return;
+    }
+    beginSending("transcribing");
+    recorder.stop();
   };
 
   const handleMainButton = () => {
     if (state === "listening") {
-      void stopRecording();
+      stopRecording();
       return;
     }
     if (state === "sending" || microphonePermission === "requesting") return;
@@ -440,6 +453,19 @@ function App() {
   const isPermissionStep = state === "idle"
     && (microphonePermission === "prompt" || microphonePermission === "requesting" || microphonePermission === "denied");
   const copy = isPermissionStep ? permissionCopy : stateCopy[state];
+  const visibleCopy = state === "sending"
+    ? sendingStage === "transcribing"
+      ? {
+          eyebrow: "通信中",
+          title: "声を文字にしています",
+          hint: "そのまま、少しお待ちください",
+        }
+      : {
+          eyebrow: "通信中",
+          title: "返事を考えています",
+          hint: "そのまま、少しお待ちください",
+        }
+    : copy;
   const mainButtonLabel = microphonePermission === "requesting"
     ? "確認中"
     : state === "idle" && microphonePermission === "denied"
@@ -476,10 +502,10 @@ function App() {
 
         <div className="status" role="status" aria-live="assertive">
           <span className="status-light" aria-hidden="true" />
-          <p>{copy.eyebrow}</p>
+          <p>{visibleCopy.eyebrow}</p>
         </div>
-        <h2 id="status-title">{copy.title}</h2>
-        <p className="state-hint">{copy.hint}</p>
+        <h2 id="status-title">{visibleCopy.title}</h2>
+        <p className="state-hint">{visibleCopy.hint}</p>
         {permissionMessage && <p className="permission-message" role="status">{permissionMessage}</p>}
 
         <div className="radio-controls">

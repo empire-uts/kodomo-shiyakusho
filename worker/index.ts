@@ -32,6 +32,20 @@ function methodNotAllowed(): Response {
   return json({ error: "METHOD_NOT_ALLOWED", message: "この操作は使えません。" }, 405);
 }
 
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 async function readJson<T>(request: Request, maxBytes = 2_048): Promise<T> {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > maxBytes) throw new Error("入力が長すぎます。");
@@ -90,7 +104,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     if (env.LLM_ENABLED !== "true" || !env.AI) {
       return json({ error: "LLM_DISABLED", message: "こども職員は、いま準備中です。" }, 503);
     }
-    const reply = await runAgent(env.AI, message, history);
+    const reply = await withTimeout(
+      runAgent(env.AI, message, history),
+      40_000,
+      "返事に時間がかかっています。もう一度、短く話してください。",
+    );
     if (env.DIAGNOSTIC_LOGGING === "true" && body.inputSource === "voice") {
       console.log(JSON.stringify({
         event: "voice_interaction",
@@ -134,13 +152,17 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
     }
 
     const audio = encodeAudioBase64(await value.arrayBuffer());
-    const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
-      audio,
-      language: "ja",
-      task: "transcribe",
-      vad_filter: true,
-      condition_on_previous_text: false,
-    });
+    const result = await withTimeout(
+      env.AI.run("@cf/openai/whisper-large-v3-turbo", {
+        audio,
+        language: "ja",
+        task: "transcribe",
+        vad_filter: true,
+        condition_on_previous_text: false,
+      }),
+      40_000,
+      "声の読み取りに時間がかかっています。もう一度、短く話してください。",
+    );
     const text = typeof result === "object" && result !== null && "text" in result
       ? String((result as { text: unknown }).text).trim()
       : "";
