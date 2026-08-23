@@ -157,6 +157,8 @@ dev配備は次を実行します。
 npm run deploy:cloudflare:dev
 ```
 
+`dev` ブランチへの更新時は、GitHub Actionsが同じdev Workerへ自動配備します。
+
 ## 決定事項
 
 | 日付 | 決定 |
