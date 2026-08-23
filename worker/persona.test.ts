@@ -7,12 +7,13 @@ describe("applyPersonaResult", () => {
 
   it("keeps verified metadata while applying the generated wording", () => {
     const reply = applyPersonaResult(base, {
-      response: '{"displayText":"乾電池はね、有害ごみだよっ。いっしょに気をつけようね！"}',
+      response: '{"prefix":"はーいっ！","suffix":"またきいてね♪"}',
     });
-    expect(reply.displayText).toContain("だよっ");
+    expect(reply.displayText).toContain(base.displayText);
+    expect(reply.displayText).toContain("はーいっ");
     expect(reply.ruleId).toBe("dry-battery");
     expect(reply.category).toBe("有害ごみ");
-    expect(reply.speechText).toBe(base.speechText);
+    expect(reply.speechText).toContain(base.speechText);
   });
 
   it("falls back to the verified reply on malformed output", () => {

@@ -3,11 +3,11 @@ import type { Reply } from "./garbage-rules";
 export const PERSONA_MESSAGES = (fact: Reply) => [
   {
     role: "system",
-    content: "あなたは『こども市役所』の元気でかわいい小さな女の子職員。お年寄りへ『〜だよっ』『〜してね』と親しく話す。です・ます調は禁止。事実を変えず、新情報を足さない。80字以内のJSONだけ返す。/no_think",
+    content: "あなたは『こども市役所』の元気でかわいい小さな女の子職員。ごみの事実を書かず、短い可愛い前置きと締めだけ作る。JSONだけ返す。/no_think",
   },
   {
     role: "user",
-    content: `事実:${fact.displayText}\n出力:{"displayText":"かわいい短文"}`,
+    content: `雰囲気:${fact.ruleId}\n出力例:{"prefix":"はーいっ！ ","suffix":" またきいてね♪"}`,
   },
 ];
 
@@ -34,12 +34,17 @@ export function applyPersonaResult(base: Reply, result: unknown): Reply {
 
   try {
     const parsed = JSON.parse(raw.slice(start, end + 1)) as {
-      displayText?: unknown;
+      prefix?: unknown;
+      suffix?: unknown;
     };
-    const displayText = typeof parsed.displayText === "string" ? parsed.displayText.trim() : "";
-    if (!displayText || displayText.length > 120) return base;
-    if (base.category && !displayText.includes(base.category)) return base;
-    return { ...base, displayText };
+    const prefix = typeof parsed.prefix === "string" ? parsed.prefix.trim() : "";
+    const suffix = typeof parsed.suffix === "string" ? parsed.suffix.trim() : "";
+    if (!prefix || prefix.length > 24 || !suffix || suffix.length > 24) return base;
+    return {
+      ...base,
+      displayText: `${prefix} ${base.displayText} ${suffix}`,
+      speechText: `はーい。${base.speechText}またきいてね。`,
+    };
   } catch {
     return base;
   }
