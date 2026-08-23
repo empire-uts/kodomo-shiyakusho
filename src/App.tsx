@@ -84,7 +84,7 @@ function App() {
       // The browser voice below is an intentional last-resort fallback.
     }
 
-    if (!speakWithJapaneseVoice(nextReply.speechText)) {
+    if (!await speakWithJapaneseVoice(nextReply.speechText)) {
       setPlaybackNote("音声を再生できません。文字で確認してください。");
     } else {
       setPlaybackNote("仮の端末音声で読み上げています。");

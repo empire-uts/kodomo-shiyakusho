@@ -21,7 +21,8 @@ describe("answerQuestion", () => {
   it("does not invent an unverified collection weekday", () => {
     const reply = answerQuestion("今日は何ごみ？");
     expect(reply.ruleId).toBe("schedule-unverified");
-    expect(reply.displayText).toContain("確認済みデータを登録していません");
+    expect(reply.source).toBe("fallback");
+    expect(reply.displayText).toContain("まだ確認済みデータを登録していない");
   });
 
   it("asks for more detail instead of guessing unknown items", () => {

@@ -22,8 +22,8 @@ const rules: Rule[] = [
     id: "rechargeable-battery",
     aliases: ["充電池", "リチウムイオン電池", "モバイルバッテリー", "バッテリー"],
     reply: {
-      displayText: "充電池は有害ごみです。外せる場合は機器から外し、JBRCの店頭回収も使えます。",
-      speechText: "じゅうでんちは、ゆうがいごみです。はずせるばあいは、ききからはずしてね。",
+      displayText: "充電池はね、有害ごみだよ。外せるときは機械から外してね。JBRCのお店の回収も使えるよ。",
+      speechText: "じゅうでんちはね、ゆうがいごみだよ。はずせるときは、きかいからはずしてね。",
       source: "master",
       ruleId: "rechargeable-battery",
       category: "有害ごみ",
@@ -34,8 +34,8 @@ const rules: Rule[] = [
     id: "dry-battery",
     aliases: ["乾電池", "かんでんち"],
     reply: {
-      displayText: "乾電池は有害ごみです。燃やすごみには混ぜず、有害ごみの日に出してください。",
-      speechText: "かんでんちは、ゆうがいごみです。もやすごみには、まぜないでね。",
+      displayText: "乾電池はね、有害ごみだよ。燃やすごみには入れないで、有害ごみの日に出してね。",
+      speechText: "かんでんちはね、ゆうがいごみだよ。もやすごみにはいれないで、ゆうがいごみのひにだしてね。",
       source: "master",
       ruleId: "dry-battery",
       category: "有害ごみ",
@@ -46,8 +46,8 @@ const rules: Rule[] = [
     id: "spray-can",
     aliases: ["スプレー缶", "カセットガス", "カセットボンベ", "ガス缶"],
     reply: {
-      displayText: "中身を使い切り、穴を開けずにビン類のかごへ出してください。中身を出し切れないときは、市へ確認してください。",
-      speechText: "なかみをつかいきり、あなをあけずに、びんるいのかごへだしてね。なかみがのこるときは、しにかくにんしてね。",
+      displayText: "スプレー缶はね、中身をぜんぶ使い切って、穴を開けずにビンのかごへ入れてね。中身が残ったら、市役所に聞いてね。",
+      speechText: "すぷれーかんはね、なかみをぜんぶつかいきって、あなをあけずに、びんのかごへいれてね。なかみがのこったら、しやくしょにきいてね。",
       source: "official-guidance",
       ruleId: "spray-can",
       category: "ビン",
@@ -58,8 +58,8 @@ const rules: Rule[] = [
     id: "umbrella",
     aliases: ["傘", "かさ"],
     reply: {
-      displayText: "傘は不燃ごみです。できるだけ分解し、親骨が70センチを超えるものは市へ確認してください。",
-      speechText: "かさは、ふねんごみです。できるだけぶんかいして、ながいものは、しにかくにんしてね。",
+      displayText: "傘はね、不燃ごみだよ。できるだけ分けて、親骨が70センチより長かったら市役所に聞いてね。",
+      speechText: "かさはね、ふねんごみだよ。できるだけわけて、ながかったら、しやくしょにきいてね。",
       source: "master",
       ruleId: "umbrella",
       category: "不燃ごみ",
@@ -70,8 +70,8 @@ const rules: Rule[] = [
     id: "diaper",
     aliases: ["おむつ", "紙おむつ"],
     reply: {
-      displayText: "おむつは可燃ごみです。汚物は先にトイレへ流してから出してください。",
-      speechText: "おむつは、かねんごみです。おぶつは、さきにといれへながしてね。",
+      displayText: "おむつはね、可燃ごみだよ。中のものは先にトイレへ流してから出してね。",
+      speechText: "おむつはね、かねんごみだよ。なかのものは、さきにといれへながしてからだしてね。",
       source: "master",
       ruleId: "diaper",
       category: "可燃ごみ",
@@ -91,8 +91,8 @@ export function answerQuestion(message: string): Reply {
 
   if (normalized.includes("出し忘れ") || normalized.includes("間に合わ")) {
     return {
-      displayText: "収集後に出したごみは、その日の再収集はありません。次の収集日まで保管し、取り残しなら分別シールを確認してください。",
-      speechText: "しゅうしゅうのあとにだしたごみは、そのひのさいしゅうしゅうはありません。つぎのひまで、ほかんしてね。",
+      displayText: "きょうはもう集めに来ないよ。次の収集日までしまっておいてね。取り残しなら、分別シールを見てみよう。",
+      speechText: "きょうはもう、あつめにこないよ。つぎのしゅうしゅうびまで、しまっておいてね。",
       source: "official-guidance",
       ruleId: "missed-collection",
       sourceUrl: COLLECTION_URL,
@@ -101,8 +101,8 @@ export function answerQuestion(message: string): Reply {
 
   if (normalized.includes("今日") || normalized.includes("何曜日") || normalized.includes("収集日")) {
     return {
-      displayText: "鶴瀬西の収集曜日は、まだ確認済みデータを登録していません。今は富士見市の収集日程で確認してください。",
-      speechText: "つるせにしのしゅうしゅうようびは、まだかくにんちゅうです。いまは、ふじみしのにっていでかくにんしてね。",
+      displayText: "ごめんね。鶴瀬西の収集曜日は、まだ確認済みデータを登録していないんだ。今は富士見市の日程を見てね。",
+      speechText: "ごめんね。つるせにしのしゅうしゅうようびは、まだかくにんちゅうなんだ。いまは、ふじみしのにっていをみてね。",
       source: "fallback",
       ruleId: "schedule-unverified",
       sourceUrl: COLLECTION_URL,
@@ -111,8 +111,8 @@ export function answerQuestion(message: string): Reply {
 
   if (normalized.includes("電池")) {
     return {
-      displayText: "乾電池ですか、充電できる電池ですか？ 種類を教えてください。",
-      speechText: "かんでんちですか、じゅうでんできるでんちですか。しゅるいをおしえてね。",
+      displayText: "電池はどっちかな？ 使い切りの乾電池か、充電できる電池か教えてね。",
+      speechText: "でんちはどっちかな。つかいきりのかんでんちか、じゅうでんできるでんちか、おしえてね。",
       source: "fallback",
       ruleId: "battery-clarification",
       sourceUrl: DICTIONARY_URL,
@@ -120,8 +120,8 @@ export function answerQuestion(message: string): Reply {
   }
 
   return {
-    displayText: "まだ確認できない品物です。品物の名前と、金属・プラスチックなどの材質を一つずつ教えてください。",
-    speechText: "まだかくにんできないしなものです。なまえと、ざいしつを、ひとつずつおしえてね。",
+    displayText: "ごめんね、まだわからない品物だよ。名前と、金属・プラスチックなどの材質を一つずつ教えてね。",
+    speechText: "ごめんね、まだわからないしなものだよ。なまえと、ざいしつを、ひとつずつおしえてね。",
     source: "fallback",
     ruleId: "unknown-item",
     sourceUrl: COLLECTION_URL,

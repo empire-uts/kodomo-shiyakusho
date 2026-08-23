@@ -53,6 +53,7 @@ export async function playAudioBlob(blob: Blob): Promise<void> {
   const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
   const source = ctx.createBufferSource();
   source.buffer = decoded;
+  source.playbackRate.value = 1.06;
   source.connect(ctx.destination);
   source.start();
   activeAnswer = source;
@@ -61,9 +62,18 @@ export async function playAudioBlob(blob: Blob): Promise<void> {
   });
 }
 
-export function speakWithJapaneseVoice(text: string): boolean {
+export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   if (!("speechSynthesis" in window)) return false;
-  const voices = window.speechSynthesis.getVoices();
+  let voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) {
+    voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
+      const timeout = window.setTimeout(() => resolve(window.speechSynthesis.getVoices()), 800);
+      window.speechSynthesis.addEventListener("voiceschanged", () => {
+        window.clearTimeout(timeout);
+        resolve(window.speechSynthesis.getVoices());
+      }, { once: true });
+    });
+  }
   const japanese = voices.filter((voice) => voice.lang.toLowerCase().startsWith("ja"));
   const preferred = japanese.find((voice) => /female|kyoko|nanami|haruka|siri/i.test(voice.name));
   const voice = preferred ?? japanese[0];
@@ -75,6 +85,10 @@ export function speakWithJapaneseVoice(text: string): boolean {
   utterance.voice = voice;
   utterance.rate = 0.92;
   utterance.pitch = 1.18;
-  window.speechSynthesis.speak(utterance);
-  return true;
+  return new Promise<boolean>((resolve) => {
+    utterance.addEventListener("start", () => resolve(true), { once: true });
+    utterance.addEventListener("error", () => resolve(false), { once: true });
+    window.setTimeout(() => resolve(window.speechSynthesis.speaking), 1_500);
+    window.speechSynthesis.speak(utterance);
+  });
 }
