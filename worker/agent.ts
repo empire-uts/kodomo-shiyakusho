@@ -6,7 +6,7 @@ import {
 } from "./skills/fujimi-waste";
 
 export const MODEL: string = "@cf/zai-org/glm-4.7-flash";
-export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。敬語はたどたどしいです。\n利用者の話を聞いて段取りを引き受け、必要に応じて確認・調査・整理しながら一緒に進めます。日常の相談全般が担当です。\nごみ以外の相談にも持っている知識で答え、段取りを前へ進めます。スキルがないことを理由に断りません。\nスキルは必要な場合だけ使います。利用できるスキルの種類・スキル名・内部の判断は、利用者への回答に書きません。\n絵文字・顔文字・装飾目的の記号は使いません。見出しや箇条書きは必要なら使います。";
+export const SYSTEM_PROMPT = "あなたは「こども市役所」の、元気で可愛い小さな女の子職員です。敬語はたどたどしいです。\n利用者の話を聞いて段取りを引き受け、必要に応じて確認・調査・整理しながら一緒に進めます。日常の相談全般が担当です。\nごみ以外の相談にも持っている知識で答え、段取りを前へ進めます。スキルがないことを理由に断りません。\nスキルは必要な場合だけ使います。利用できるスキルの種類・スキル名・内部の判断は、利用者への回答に書きません。\n回答は音声で読み上げられます。内容の範囲は狭めず、一度聞いて理解できる自然な話し言葉にします。結論や次の一手を先に言い、一文を短めにします。\n利用者が「今日」「明日」「明後日」と言ったときは、その言葉を回答でも使います。必要もないのに年月日へ変換しません。日付が必要なら月日だけを言い、年は年を聞かれた場合か、年またぎで曖昧な場合だけ言います。\nMarkdown、見出し、箇条書き、番号リスト、表、URL、長い括弧書きは使いません。複数の項目は「三つあります。一つ目は」のように、耳で順番が分かる言葉で話します。\n絵文字・顔文字・装飾目的の記号は使いません。";
 
 interface AiBinding extends MarkdownAi {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -160,6 +160,63 @@ function cleanAnswer(value: string): string {
     .trim();
 }
 
+const SPOKEN_ORDINALS = [
+  "一つ目は",
+  "二つ目は",
+  "三つ目は",
+  "四つ目は",
+  "五つ目は",
+  "六つ目は",
+  "七つ目は",
+  "八つ目は",
+  "九つ目は",
+  "十個目は",
+];
+
+function speechTextFrom(answer: string): string {
+  let bulletIndex = 0;
+  const spokenLines = answer
+    .replace(/```[\s\S]*?```/g, "コードは画面で確認してください。")
+    .replace(/\[([^\]]+)]\(https?:\/\/[^)]+\)/g, "$1")
+    .replace(/https?:\/\/[^\s)）]+/g, "")
+    .replace(/(?:19|20)\d{2}年(?=\s*\d{1,2}月)/g, "")
+    .replace(/\b(?:19|20)\d{2}-(\d{1,2})-(\d{1,2})\b/g, (_match, month: string, day: string) => (
+      `${Number(month)}月${Number(day)}日`
+    ))
+    .split(/\n+/)
+    .map((line) => {
+      let spoken = line.trim().replace(/^#{1,6}\s*/, "");
+      const numbered = spoken.match(/^(\d{1,2})(?:[.)、．]|\s+)\s*(.*)$/);
+      if (numbered) {
+        const position = Number(numbered[1]);
+        const ordinal = SPOKEN_ORDINALS[position - 1] ?? `${position}番目は`;
+        spoken = `${ordinal}、${numbered[2]}`;
+      } else if (/^[-*+•・▪◦]\s*/u.test(spoken)) {
+        bulletIndex += 1;
+        const ordinal = SPOKEN_ORDINALS[bulletIndex - 1] ?? `${bulletIndex}番目は`;
+        spoken = spoken.replace(/^[-*+•・▪◦]\s*/u, `${ordinal}、`);
+      }
+      spoken = spoken
+        .replace(/[*_`~]/g, "")
+        .replace(/[〜～]+/g, "。")
+        .replace(/[／/]+/g, "、")
+        .replace(/[:：]+/g, "、")
+        .replace(/[ \t]{2,}/g, " ")
+        .trim();
+      if (spoken && !/[。！？!?]$/.test(spoken)) spoken += "。";
+      return spoken;
+    })
+    .filter(Boolean);
+
+  return spokenLines
+    .join(" ")
+    .replace(/。{2,}/g, "。")
+    .replace(/、{2,}/g, "、")
+    .replace(/([。！？!?])\s+/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export async function runAgent(
   ai: AiBinding,
   userInput: string,
@@ -189,7 +246,7 @@ export async function runAgent(
       if (!answer) throw new Error("LLMが回答文を返しませんでした。");
       return {
         displayText: answer,
-        speechText: answer,
+        speechText: speechTextFrom(answer),
         ...(sourceUrl ? { sourceUrl } : {}),
         ...(toolsUsed.length > 0 ? { toolsUsed } : {}),
       };

@@ -11,6 +11,7 @@ describe("runAgent", () => {
     expect(SYSTEM_PROMPT).toContain("日常の相談全般");
     expect(SYSTEM_PROMPT).toContain("スキルがないことを理由に断りません");
     expect(SYSTEM_PROMPT).toContain("内部の判断");
+    expect(SYSTEM_PROMPT).toContain("必要もないのに年月日へ変換しません");
     expect(input.messages).toEqual([
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: "  いま、いる？  " },
@@ -29,7 +30,27 @@ describe("runAgent", () => {
     });
     const reply = await runAgent({ run, toMarkdown: vi.fn() }, "手伝って");
     expect(reply.displayText).toBe("はい！ いっしょに進めますね～\n1 まず確認します。");
-    expect(reply.speechText).toBe(reply.displayText);
+    expect(reply.speechText).toBe("はい！いっしょに進めますね。一つ目は、まず確認します。");
+  });
+
+  it("turns visual formatting into natural spoken ordering", async () => {
+    const run = vi.fn().mockResolvedValue({
+      response: "## 買い物の手順\n- 財布を持ちます\n- 駅へ行きます\n詳しくは [案内ページ](https://example.com/guide) です。",
+    });
+    const reply = await runAgent({ run, toMarkdown: vi.fn() }, "買い物の段取りをして");
+    expect(reply.displayText).toContain("## 買い物の手順");
+    expect(reply.speechText).toBe(
+      "買い物の手順。一つ目は、財布を持ちます。二つ目は、駅へ行きます。詳しくは 案内ページ です。",
+    );
+  });
+
+  it("does not read an unnecessary year or ISO date aloud", async () => {
+    const run = vi.fn().mockResolvedValue({
+      response: "明日は2026年8月24日です。次の予定は2026-08-31です。",
+    });
+    const reply = await runAgent({ run, toMarkdown: vi.fn() }, "明日の予定は？");
+    expect(reply.displayText).toBe("明日は2026年8月24日です。次の予定は2026-08-31です。");
+    expect(reply.speechText).toBe("明日は8月24日です。次の予定は8月31日です。");
   });
 
   it("places recent conversation before the current user message", async () => {
