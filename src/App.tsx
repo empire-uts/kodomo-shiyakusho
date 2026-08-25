@@ -33,18 +33,39 @@ interface ScrollDrag {
 const HISTORY_STORAGE_KEY = "kodomo-shiyakusho:conversation";
 const SESSION_STORAGE_KEY = "kodomo-shiyakusho:session-id";
 const MAX_HISTORY_MESSAGES = 6;
+const MAX_HISTORY_MESSAGE_CHARACTERS = 800;
+
+function normalizeHistory(value: unknown): ConversationMessage[] {
+  if (!Array.isArray(value)) return [];
+
+  const messages = value
+    .filter((item): item is ConversationMessage => (
+      typeof item === "object"
+      && item !== null
+      && ("role" in item && (item.role === "user" || item.role === "assistant"))
+      && ("content" in item && typeof item.content === "string" && Boolean(item.content.trim()))
+    ))
+    .map((item) => ({
+      role: item.role,
+      content: item.content.trim().slice(0, MAX_HISTORY_MESSAGE_CHARACTERS),
+    }));
+
+  const completeExchanges: ConversationMessage[] = [];
+  for (let index = 0; index < messages.length - 1; index += 1) {
+    const userMessage = messages[index];
+    const assistantMessage = messages[index + 1];
+    if (userMessage.role !== "user" || assistantMessage.role !== "assistant") continue;
+    completeExchanges.push(userMessage, assistantMessage);
+    index += 1;
+  }
+
+  return completeExchanges.slice(-MAX_HISTORY_MESSAGES);
+}
 
 function loadHistory(): ConversationMessage[] {
   try {
     const value = JSON.parse(sessionStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]") as unknown;
-    if (!Array.isArray(value)) return [];
-    const history = value.filter((item): item is ConversationMessage => (
-      typeof item === "object"
-      && item !== null
-      && ("role" in item && (item.role === "user" || item.role === "assistant"))
-      && ("content" in item && typeof item.content === "string")
-    ));
-    return history.slice(-MAX_HISTORY_MESSAGES);
+    return normalizeHistory(value);
   } catch {
     return [];
   }
@@ -229,11 +250,11 @@ function App() {
   };
 
   const rememberExchange = (message: string, nextReply: AssistantReply) => {
-    const nextHistory = [
+    const nextHistory = normalizeHistory([
       ...historyRef.current,
       { role: "user" as const, content: message },
       { role: "assistant" as const, content: nextReply.displayText },
-    ].slice(-MAX_HISTORY_MESSAGES);
+    ]);
     historyRef.current = nextHistory;
     setConversationHistory(nextHistory);
     try {

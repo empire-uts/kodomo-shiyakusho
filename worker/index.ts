@@ -97,7 +97,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       inputSource?: unknown;
       history?: unknown;
       sessionId?: unknown;
-    }>(request, 12_288);
+    }>(request, 32_768);
     if (typeof body.message !== "string" || !body.message.trim()) {
       return json({ error: "INVALID_MESSAGE", message: "質問を話してください。" }, 400);
     }

@@ -120,13 +120,12 @@ export async function speakWithJapaneseVoice(text: string): Promise<boolean> {
   const japanese = voices.filter((voice) => voice.lang.toLowerCase().startsWith("ja"));
   const preferred = japanese.find((voice) => /female|kyoko|nanami|haruka|siri/i.test(voice.name));
   const voice = preferred ?? japanese[0];
-  if (!voice) return false;
 
   window.speechSynthesis.cancel();
   window.speechSynthesis.resume();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ja-JP";
-  utterance.voice = voice;
+  if (voice) utterance.voice = voice;
   utterance.rate = 0.96;
   utterance.pitch = 1.74;
   return new Promise<boolean>((resolve) => {
