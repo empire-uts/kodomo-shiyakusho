@@ -113,7 +113,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       return json({ error: "MESSAGE_TOO_LONG", message: "質問が長すぎます。短く話してください。" }, 413);
     }
     if (env.LLM_ENABLED !== "true" || !env.AI) {
-      return json({ error: "LLM_DISABLED", message: "こども職員は、いま準備中です。" }, 503);
+      return json({ error: "LLM_DISABLED", message: "ヤドカリさんは、いま準備中です。" }, 503);
     }
     const reply = await withTimeout(
       runAgent(env.AI, message, history),

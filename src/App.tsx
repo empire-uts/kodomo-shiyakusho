@@ -14,6 +14,7 @@ import {
 } from "./api";
 import { playAudioBlob, speakWithJapaneseVoice, startRadioNoise, stopAnswerAudio, unlockAudio } from "./audio";
 import { useP2PCall } from "./useP2PCall";
+import yadokariSan from "./assets/yadokari-san.webp";
 
 type AppState = "idle" | "listening" | "sending" | "answer" | "error";
 type MicrophonePermission = "unknown" | "prompt" | "requesting" | "granted" | "denied";
@@ -103,11 +104,11 @@ const stateCopy: Record<AppState, { eyebrow: string; title: string; hint: string
   },
   sending: {
     eyebrow: "通信中",
-    title: "市役所に聞いています",
+    title: "ヤドカリさんに聞いています",
     hint: "そのまま、少しお待ちください",
   },
   answer: {
-    eyebrow: "こども職員からです",
+    eyebrow: "ヤドカリさんからです",
     title: "お返事が届きました",
     hint: "下の巻物にも記録しました",
   },
@@ -529,8 +530,8 @@ function App() {
       )}
       <header className="topbar">
         <div>
-          <p className="audience-label">高齢者向け音声案内</p>
-          <h1>こども市役所</h1>
+          <p className="audience-label">声で相談できる案内所</p>
+          <h1>ヤドカリさんと話す</h1>
         </div>
         <div className="area-chip" aria-label="設定地域">富士見市・鶴瀬西</div>
       </header>
@@ -562,6 +563,9 @@ function App() {
         </div>
 
         <div className="radio-main">
+        <div className="guide-portrait" aria-label="案内役のヤドカリさん">
+          <img src={yadokariSan} alt="緑色の貝殻を背負った、赤いヤドカリさん" />
+        </div>
         <div className="speaker-grid" aria-hidden="true">
           {Array.from({ length: 18 }, (_, index) => <span key={index} />)}
         </div>
@@ -648,7 +652,7 @@ function App() {
                   <p className="scroll-empty">相談すると、ここにやりとりが書き込まれます。</p>
                 ) : conversationHistory.map((message, index) => (
                   <article className={`scroll-entry scroll-entry-${message.role}`} key={`${message.role}-${index}`}>
-                    <p className="scroll-speaker">{message.role === "user" ? "あなた" : "こども職員"}</p>
+                    <p className="scroll-speaker">{message.role === "user" ? "あなた" : "ヤドカリさん"}</p>
                     <p className="scroll-message">{message.content}</p>
                   </article>
                 ))}
@@ -673,7 +677,7 @@ function App() {
 
       <section className="examples" aria-labelledby="examples-title">
         <h2 id="examples-title">声を使わず試す</h2>
-        <p>質問を選んで、こども職員の返事を試せます。</p>
+        <p>質問を選んで、ヤドカリさんの返事を試せます。</p>
         <div className="example-grid">
           {examples.map((example) => (
             <button key={example} type="button" onClick={() => handleExample(example)} disabled={state === "sending" || call.active}>
@@ -684,7 +688,7 @@ function App() {
       </section>
 
       <footer>
-        <p>これは子ども向けではなく、高齢者向けの試作アプリです。</p>
+        <p>高齢者やデジタル操作が苦手な人に向けた試作アプリです。</p>
         <p>必要なときは、設定地域の公開情報を調べて答えます。</p>
       </footer>
     </main>

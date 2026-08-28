@@ -145,7 +145,7 @@ h1 { margin: 0; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.08; }
 .radio-panel {
   position: relative;
   overflow: hidden;
-  min-height: 650px;
+  min-height: 720px;
   border: 5px solid #071a2b;
   border-radius: 38px;
   background: linear-gradient(160deg, #163a59 0%, #0b2239 62%, #071a2b 100%);
@@ -153,6 +153,24 @@ h1 { margin: 0; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.08; }
   color: #fff;
   padding: 32px 24px 28px;
   text-align: center;
+}
+
+.guide-portrait {
+  width: clamp(112px, 28vw, 154px);
+  aspect-ratio: 1;
+  margin: 0 auto 20px;
+  overflow: hidden;
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 8px 0 #06111b, 0 14px 24px rgba(0, 0, 0, 0.28);
+}
+
+.guide-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
 }
 
 .speaker-grid {
@@ -499,7 +517,7 @@ footer p { margin: 4px 0; }
   .transceiver-call-controls { grid-template-columns: minmax(78px, 94px) minmax(0, 1fr) minmax(78px, 94px); gap: 8px; margin-bottom: 22px; }
   .call-button { min-height: 56px; border-radius: 14px; }
   .topbar { align-items: start; flex-direction: column; }
-  .radio-panel { min-height: 610px; border-radius: 30px; padding-inline: 16px; }
+  .radio-panel { min-height: 680px; border-radius: 30px; padding-inline: 16px; }
   .example-grid { grid-template-columns: 1fr; }
   .desk-panel { border-radius: 22px; padding: 12px; }
   .desk-inlay { padding-inline: 7px; }

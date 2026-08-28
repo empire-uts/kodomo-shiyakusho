@@ -9,6 +9,8 @@ describe("runAgent", () => {
     const input = run.mock.calls[0][1] as { messages: Array<{ role: string; content: string }> };
     expect(SYSTEM_PROMPT).toContain("段取りを引き受け");
     expect(SYSTEM_PROMPT).toContain("日常の相談全般");
+    expect(SYSTEM_PROMPT).toContain("ヤドカリさん");
+    expect(SYSTEM_PROMPT).not.toContain("女の子職員");
     expect(SYSTEM_PROMPT).toContain("スキルがないことを理由に断りません");
     expect(SYSTEM_PROMPT).toContain("内部の判断");
     expect(SYSTEM_PROMPT).toContain("必要もないのに年月日へ変換しません");
